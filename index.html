@@ -5,24 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Digital Twin Healthcare</title>
 
-<!-- Tailwind -->
-<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{
-    background:#020617;
-    color:white;
-    font-family: 'Segoe UI', sans-serif;
+background:#020617;
+color:white;
+font-family: 'Segoe UI', sans-serif;
+scroll-behavior:smooth;
 }
 .glass{
-    background: rgba(255,255,255,0.05);
-    backdrop-filter: blur(10px);
-    border:1px solid rgba(255,255,255,0.1);
+background:rgba(255,255,255,0.05);
+backdrop-filter:blur(12px);
+border:1px solid rgba(255,255,255,0.1);
 }
 .gradient{
-    background: linear-gradient(90deg,#3b82f6,#a855f7);
-    -webkit-background-clip:text;
-    -webkit-text-fill-color:transparent;
+background:linear-gradient(90deg,#3b82f6,#a855f7);
+-webkit-background-clip:text;
+-webkit-text-fill-color:transparent;
 }
 </style>
 </head>
@@ -30,100 +31,143 @@ body{
 <body>
 
 <!-- NAVBAR -->
-<nav class="fixed w-full bg-black/40 backdrop-blur-md p-4 flex justify-between z-50">
+<nav class="fixed top-0 w-full bg-black bg-opacity-40 backdrop-blur-md z-50 px-10 py-4 flex justify-between">
 <h1 class="text-xl font-bold gradient">Digital Twin Healthcare</h1>
+
 <div class="space-x-6 text-sm">
-<a href="#about">About</a>
+<a href="#home">Home</a>
+<a href="#problem">Problem</a>
+<a href="#desc">Description</a>
+<a href="#literature">Literature</a>
 <a href="#features">Features</a>
-<a href="#tech">Tech</a>
-<a href="#team">Team</a>
+<a href="#contact">Contact</a>
 </div>
 </nav>
 
+
 <!-- HERO -->
-<section class="h-screen flex flex-col justify-center items-center text-center px-6">
-<h1 class="text-6xl font-extrabold gradient mb-6">DIGITAL TWIN HEALTHCARE</h1>
-<p class="max-w-2xl text-gray-400 text-lg">
-A smart healthcare system that creates a digital twin of patients by storing
-medical history, hospital visits and treatment records for real-time monitoring
-and better diagnosis.
-</p>
-
-<div class="mt-8">
-<a href="http://localhost:5000" target="_blank"
-class="bg-blue-600 px-8 py-3 rounded-full font-bold hover:bg-blue-500">
-Test Backend Connection
-</a>
-</div>
-</section>
-
-<!-- ABOUT -->
-<section id="about" class="py-20 px-10">
-<h2 class="text-4xl font-bold mb-8 text-center">Project Overview</h2>
-
-<div class="glass p-8 rounded-3xl max-w-4xl mx-auto">
-<p class="text-gray-400 leading-relaxed">
-Digital Twin Healthcare is a database-driven system that maintains
-patient records, hospital visits and treatment history.
-It helps hospitals digitally track patients and provides
-quick access to medical data for better decision making.
+<section id="home" class="min-h-screen flex items-center justify-center text-center">
+<div>
+<h1 class="text-6xl font-extrabold gradient mb-6">Digital Twin Healthcare System</h1>
+<p class="text-gray-400 max-w-2xl mx-auto text-lg">
+A smart healthcare monitoring and digital twin system that connects patient data,
+hospital systems and analytics for real-time insights.
 </p>
 </div>
 </section>
 
-<!-- FEATURES -->
-<section id="features" class="py-20 px-10">
-<h2 class="text-4xl font-bold text-center mb-12">Key Features</h2>
 
-<div class="grid md:grid-cols-3 gap-8">
+<!-- MAIN GRID -->
+<section class="px-10 py-20 grid md:grid-cols-3 gap-10">
 
-<div class="glass p-8 rounded-3xl text-center">
-<h3 class="text-xl font-bold mb-3">Patient Records</h3>
-<p class="text-gray-400">Store Aadhaar, name, DOB and contact details</p>
+<!-- LEFT SIDEBAR -->
+<div class="space-y-8">
+
+<!-- Problem -->
+<div id="problem" class="glass p-6 rounded-2xl">
+<h2 class="text-xl font-bold text-blue-400 mb-3">Problem Statement</h2>
+<p class="text-gray-300 text-sm leading-relaxed">
+Healthcare systems lack real-time patient monitoring and predictive analytics.
+Hospitals struggle to track patient health continuously and prevent emergencies.
+Our project builds a digital twin of patient health using data and simulation
+to improve decision making and patient care.
+</p>
 </div>
 
-<div class="glass p-8 rounded-3xl text-center">
-<h3 class="text-xl font-bold mb-3">Hospital Visits</h3>
-<p class="text-gray-400">Track patient visit history and reasons</p>
+<!-- Description -->
+<div id="desc" class="glass p-6 rounded-2xl">
+<h2 class="text-xl font-bold text-purple-400 mb-3">Project Description</h2>
+<p class="text-gray-300 text-sm leading-relaxed">
+The Digital Twin Healthcare system creates a virtual model of patients using
+health records, sensors and analytics. It helps doctors monitor patient health,
+predict risks and make better treatment decisions using real-time data and
+machine learning insights.
+</p>
 </div>
 
-<div class="glass p-8 rounded-3xl text-center">
-<h3 class="text-xl font-bold mb-3">Treatment Records</h3>
-<p class="text-gray-400">Store diagnosis and treatment details</p>
+<!-- Literature -->
+<div id="literature" class="glass p-6 rounded-2xl">
+<h2 class="text-xl font-bold text-green-400 mb-3">Literature Review</h2>
+<ul class="text-gray-300 text-sm space-y-2 list-disc ml-4">
+<li>Digital Twin technology used in smart healthcare monitoring.</li>
+<li>IoT based patient tracking systems in hospitals.</li>
+<li>AI predictive analytics for disease detection.</li>
+<li>Cloud based EHR and smart hospital systems.</li>
+</ul>
+</div>
+
+</div>
+
+
+<!-- RIGHT CONTENT -->
+<div class="md:col-span-2 space-y-10">
+
+<!-- Features -->
+<div id="features" class="glass p-8 rounded-2xl">
+<h2 class="text-2xl font-bold mb-6 gradient">Project Features</h2>
+
+<div class="grid md:grid-cols-2 gap-6">
+
+<div class="bg-white bg-opacity-5 p-5 rounded-xl">
+<h3 class="font-bold text-blue-400 mb-2">Real-time Monitoring</h3>
+<p class="text-gray-400 text-sm">Track patient health and vitals continuously.</p>
+</div>
+
+<div class="bg-white bg-opacity-5 p-5 rounded-xl">
+<h3 class="font-bold text-purple-400 mb-2">Digital Twin Simulation</h3>
+<p class="text-gray-400 text-sm">Virtual model of patient health for analysis.</p>
+</div>
+
+<div class="bg-white bg-opacity-5 p-5 rounded-xl">
+<h3 class="font-bold text-green-400 mb-2">AI Prediction</h3>
+<p class="text-gray-400 text-sm">Predict disease risks using analytics.</p>
+</div>
+
+<div class="bg-white bg-opacity-5 p-5 rounded-xl">
+<h3 class="font-bold text-pink-400 mb-2">Secure Database</h3>
+<p class="text-gray-400 text-sm">MySQL based secure patient data storage.</p>
+</div>
+
+</div>
+</div>
+
+
+<!-- LIVE BACKEND TEST -->
+<div class="glass p-8 rounded-2xl text-center">
+<h2 class="text-xl font-bold mb-4">Backend Status</h2>
+<button onclick="checkBackend()" class="bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-500">
+Check Backend Connection
+</button>
+
+<p id="status" class="mt-4 text-gray-300"></p>
 </div>
 
 </div>
 </section>
 
-<!-- TECH STACK -->
-<section id="tech" class="py-20 px-10">
-<h2 class="text-4xl font-bold text-center mb-12">Tech Stack</h2>
 
-<div class="grid md:grid-cols-4 gap-8 text-center">
-
-<div class="glass p-6 rounded-2xl">HTML</div>
-<div class="glass p-6 rounded-2xl">Node.js</div>
-<div class="glass p-6 rounded-2xl">Express.js</div>
-<div class="glass p-6 rounded-2xl">MySQL</div>
-
-</div>
+<!-- CONTACT -->
+<section id="contact" class="text-center py-20 border-t border-gray-800">
+<h2 class="text-2xl font-bold mb-4">Project By Ananya Gupta</h2>
+<p class="text-gray-400">Manipal University Jaipur • CSE • PBL Project</p>
 </section>
 
-<!-- TEAM -->
-<section id="team" class="py-20 text-center">
-<h2 class="text-3xl font-bold mb-8">Project By</h2>
 
-<div class="glass inline-block px-12 py-8 rounded-3xl">
-<h3 class="text-xl font-bold">Ananya Gupta</h3>
-<p class="text-gray-400">Digital Twin Healthcare Project</p>
-</div>
-</section>
-
-<!-- FOOTER -->
-<footer class="py-10 text-center text-gray-500 border-t border-gray-800">
-Manipal University Jaipur • 2026
-</footer>
+<!-- JS -->
+<script>
+function checkBackend(){
+fetch("http://localhost:5000")
+.then(res=>res.text())
+.then(data=>{
+document.getElementById("status").innerHTML =
+"<span style='color:lime'>✔ Backend Connected:</span> "+data;
+})
+.catch(()=>{
+document.getElementById("status").innerHTML =
+"<span style='color:red'>❌ Backend not running</span>";
+});
+}
+</script>
 
 </body>
 </html>
-
