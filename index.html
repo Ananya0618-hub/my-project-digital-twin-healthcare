@@ -5,169 +5,231 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Digital Twin Healthcare</title>
 
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <style>
 body{
-background:#020617;
-color:white;
-font-family: 'Segoe UI', sans-serif;
-scroll-behavior:smooth;
+    margin:0;
+    font-family: 'Segoe UI', sans-serif;
+    background:#f5f7fb;
 }
-.glass{
-background:rgba(255,255,255,0.05);
-backdrop-filter:blur(12px);
-border:1px solid rgba(255,255,255,0.1);
+
+/* hide all screens */
+.screen{
+    display:none;
+    height:100vh;
 }
-.gradient{
-background:linear-gradient(90deg,#3b82f6,#a855f7);
--webkit-background-clip:text;
--webkit-text-fill-color:transparent;
+
+/* show active */
+.active{
+    display:flex;
+}
+
+/* center layout */
+.center{
+    justify-content:center;
+    align-items:center;
+}
+
+/* card */
+.card{
+    background:white;
+    padding:40px;
+    border-radius:12px;
+    width:350px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.1);
+}
+
+h1,h2,h3{
+    margin-top:0;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    margin-top:10px;
+    border:1px solid #ddd;
+    border-radius:8px;
+}
+
+button{
+    width:100%;
+    padding:12px;
+    margin-top:15px;
+    background:#4f6df5;
+    color:white;
+    border:none;
+    border-radius:8px;
+    font-size:16px;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#3d57d6;
+}
+
+/* dashboard layout */
+.dashboard{
+    display:flex;
+    width:100%;
+}
+
+/* sidebar */
+.sidebar{
+    width:250px;
+    background:#fff;
+    padding:20px;
+    box-shadow:2px 0 10px rgba(0,0,0,0.05);
+}
+
+.sidebar h2{
+    color:#4f6df5;
+}
+
+.sidebar div{
+    padding:12px;
+    margin:10px 0;
+    background:#f1f3ff;
+    border-radius:8px;
+}
+
+/* content */
+.content{
+    flex:1;
+    padding:30px;
+}
+
+.box{
+    background:white;
+    padding:20px;
+    margin-bottom:20px;
+    border-radius:12px;
+    box-shadow:0 5px 20px rgba(0,0,0,0.08);
 }
 </style>
 </head>
 
 <body>
 
-<!-- NAVBAR -->
-<nav class="fixed top-0 w-full bg-black bg-opacity-40 backdrop-blur-md z-50 px-10 py-4 flex justify-between">
-<h1 class="text-xl font-bold gradient">Digital Twin Healthcare</h1>
+<!-- LOGIN SCREEN -->
+<div class="screen active center" id="login">
+<div class="card">
+<h2>HealthMirror</h2>
+<p>Your lifetime digital health twin</p>
 
-<div class="space-x-6 text-sm">
-<a href="#home">Home</a>
-<a href="#problem">Problem</a>
-<a href="#desc">Description</a>
-<a href="#literature">Literature</a>
-<a href="#features">Features</a>
-<a href="#contact">Contact</a>
+<input placeholder="Phone number">
+<input placeholder="Aadhaar (optional)">
+<button onclick="showScreen('otp')">Send OTP</button>
+
+<p style="text-align:center;margin-top:15px;">Login as Doctor</p>
 </div>
-</nav>
-
-
-<!-- HERO -->
-<section id="home" class="min-h-screen flex items-center justify-center text-center">
-<div>
-<h1 class="text-6xl font-extrabold gradient mb-6">Digital Twin Healthcare System</h1>
-<p class="text-gray-400 max-w-2xl mx-auto text-lg">
-A smart healthcare monitoring and digital twin system that connects patient data,
-hospital systems and analytics for real-time insights.
-</p>
-</div>
-</section>
-
-
-<!-- MAIN GRID -->
-<section class="px-10 py-20 grid md:grid-cols-3 gap-10">
-
-<!-- LEFT SIDEBAR -->
-<div class="space-y-8">
-
-<!-- Problem -->
-<div id="problem" class="glass p-6 rounded-2xl">
-<h2 class="text-xl font-bold text-blue-400 mb-3">Problem Statement</h2>
-<p class="text-gray-300 text-sm leading-relaxed">
-Healthcare systems lack real-time patient monitoring and predictive analytics.
-Hospitals struggle to track patient health continuously and prevent emergencies.
-Our project builds a digital twin of patient health using data and simulation
-to improve decision making and patient care.
-</p>
 </div>
 
-<!-- Description -->
-<div id="desc" class="glass p-6 rounded-2xl">
-<h2 class="text-xl font-bold text-purple-400 mb-3">Project Description</h2>
-<p class="text-gray-300 text-sm leading-relaxed">
-The Digital Twin Healthcare system creates a virtual model of patients using
-health records, sensors and analytics. It helps doctors monitor patient health,
-predict risks and make better treatment decisions using real-time data and
-machine learning insights.
-</p>
+<!-- OTP SCREEN -->
+<div class="screen center" id="otp">
+<div class="card">
+<h3>Enter OTP</h3>
+<p>We sent 6 digit code</p>
+
+<input placeholder="Enter OTP">
+<button onclick="showScreen('role')">Verify & Continue</button>
+</div>
 </div>
 
-<!-- Literature -->
-<div id="literature" class="glass p-6 rounded-2xl">
-<h2 class="text-xl font-bold text-green-400 mb-3">Literature Review</h2>
-<ul class="text-gray-300 text-sm space-y-2 list-disc ml-4">
-<li>Digital Twin technology used in smart healthcare monitoring.</li>
-<li>IoT based patient tracking systems in hospitals.</li>
-<li>AI predictive analytics for disease detection.</li>
-<li>Cloud based EHR and smart hospital systems.</li>
-</ul>
+<!-- ROLE SELECT -->
+<div class="screen center" id="role">
+<div class="card">
+<h3>Select Role</h3>
+
+<button onclick="showScreen('patientDash')">Continue as Patient</button>
+<button style="background:#22a06b" onclick="showScreen('doctorDash')">Continue as Doctor</button>
+</div>
 </div>
 
+<!-- PATIENT DASHBOARD -->
+<div class="screen dashboard" id="patientDash">
+
+<div class="sidebar">
+<h2>HealthMirror</h2>
+<div>My Digital Twin</div>
+<div>Treatment History</div>
+<div>Lab Reports</div>
+<div>Prescriptions</div>
+<button onclick="showScreen('login')">Logout</button>
 </div>
 
+<div class="content">
+<h2>Patient Dashboard</h2>
 
-<!-- RIGHT CONTENT -->
-<div class="md:col-span-2 space-y-10">
-
-<!-- Features -->
-<div id="features" class="glass p-8 rounded-2xl">
-<h2 class="text-2xl font-bold mb-6 gradient">Project Features</h2>
-
-<div class="grid md:grid-cols-2 gap-6">
-
-<div class="bg-white bg-opacity-5 p-5 rounded-xl">
-<h3 class="font-bold text-blue-400 mb-2">Real-time Monitoring</h3>
-<p class="text-gray-400 text-sm">Track patient health and vitals continuously.</p>
+<div class="box">
+<h3>Lifetime Summary</h3>
+<p>Total Visits: 47</p>
+<p>Years on record: 12</p>
 </div>
 
-<div class="bg-white bg-opacity-5 p-5 rounded-xl">
-<h3 class="font-bold text-purple-400 mb-2">Digital Twin Simulation</h3>
-<p class="text-gray-400 text-sm">Virtual model of patient health for analysis.</p>
+<div class="box">
+<h3>Chronic Conditions</h3>
+<p>Hypertension, Diabetes</p>
 </div>
 
-<div class="bg-white bg-opacity-5 p-5 rounded-xl">
-<h3 class="font-bold text-green-400 mb-2">AI Prediction</h3>
-<p class="text-gray-400 text-sm">Predict disease risks using analytics.</p>
+<div class="box">
+<h3>Recent Treatments</h3>
+<p>Hypertension Management</p>
+<p>Diabetes Follow-up</p>
 </div>
 
-<div class="bg-white bg-opacity-5 p-5 rounded-xl">
-<h3 class="font-bold text-pink-400 mb-2">Secure Database</h3>
-<p class="text-gray-400 text-sm">MySQL based secure patient data storage.</p>
+<div class="box">
+<h3>Risk Score</h3>
+<p>65/100 - Moderate risk</p>
 </div>
 
 </div>
 </div>
 
+<!-- DOCTOR DASHBOARD -->
+<div class="screen dashboard" id="doctorDash">
 
-<!-- LIVE BACKEND TEST -->
-<div class="glass p-8 rounded-2xl text-center">
-<h2 class="text-xl font-bold mb-4">Backend Status</h2>
-<button onclick="checkBackend()" class="bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-500">
-Check Backend Connection
-</button>
+<div class="sidebar">
+<h2>Doctor Panel</h2>
+<div>Patient Records</div>
+<div>Add Treatment</div>
+<div>Lab Reports</div>
+<div>AI Assistant</div>
+<button onclick="showScreen('login')">Logout</button>
+</div>
 
-<p id="status" class="mt-4 text-gray-300"></p>
+<div class="content">
+<h2>Doctor Dashboard</h2>
+
+<div class="box">
+<h3>Patient Digital Twin</h3>
+<p>Name: Rajesh Kumar</p>
+<p>Age: 45</p>
+</div>
+
+<div class="box">
+<h3>Enter Treatment</h3>
+<input placeholder="Diagnosis">
+<input placeholder="Medication">
+<input placeholder="Procedure">
+<button>Save Record</button>
+</div>
+
+<div class="box">
+<h3>Lab Report</h3>
+<p>Total Cholesterol: 225</p>
+<p>LDL: 145</p>
+<p>HDL: 45</p>
 </div>
 
 </div>
-</section>
+</div>
 
-
-<!-- CONTACT -->
-<section id="contact" class="text-center py-20 border-t border-gray-800">
-<h2 class="text-2xl font-bold mb-4">Project By Ananya Gupta</h2>
-<p class="text-gray-400">Manipal University Jaipur • CSE • PBL Project</p>
-</section>
-
-
-<!-- JS -->
 <script>
-function checkBackend(){
-fetch("http://localhost:5000")
-.then(res=>res.text())
-.then(data=>{
-document.getElementById("status").innerHTML =
-"<span style='color:lime'>✔ Backend Connected:</span> "+data;
-})
-.catch(()=>{
-document.getElementById("status").innerHTML =
-"<span style='color:red'>❌ Backend not running</span>";
-});
+function showScreen(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
 }
 </script>
 
 </body>
 </html>
+
