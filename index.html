@@ -1,235 +1,232 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Digital Twin Healthcare</title>
+  <meta charset="UTF-8" />
+  <title>Digital Twin Healthcare System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<style>
-body{
-    margin:0;
-    font-family: 'Segoe UI', sans-serif;
-    background:#f5f7fb;
-}
+  <style>
+    * { box-sizing: border-box; font-family: Arial, sans-serif; }
+    body { margin: 0; background: #f4f6f9; color: #333; }
 
-/* hide all screens */
-.screen{
-    display:none;
-    height:100vh;
-}
+    /* Navbar */
+    nav {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: #1f2937;
+      padding: 15px 40px;
+      display: flex;
+      gap: 25px;
+      z-index: 1000;
+    }
+    nav a {
+      color: #fff;
+      text-decoration: none;
+      font-weight: bold;
+    }
 
-/* show active */
-.active{
-    display:flex;
-}
+    section {
+      padding: 80px 60px;
+      min-height: 100vh;
+    }
 
-/* center layout */
-.center{
-    justify-content:center;
-    align-items:center;
-}
+    h1 { color: #1f2937; }
+    h2 { color: #2563eb; margin-top: 40px; }
 
-/* card */
-.card{
-    background:white;
-    padding:40px;
-    border-radius:12px;
-    width:350px;
-    box-shadow:0 10px 30px rgba(0,0,0,0.1);
-}
+    /* Home */
+    #home {
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      color: white;
+      text-align: center;
+    }
+    #home h1 { font-size: 42px; color: white; }
+    #home p { font-size: 18px; max-width: 800px; margin: auto; }
 
-h1,h2,h3{
-    margin-top:0;
-}
+    /* Content cards */
+    .card {
+      background: white;
+      padding: 30px;
+      margin-top: 20px;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    }
 
-input{
-    width:100%;
-    padding:12px;
-    margin-top:10px;
-    border:1px solid #ddd;
-    border-radius:8px;
-}
+    /* Demo screens */
+    .screen {
+      display: none;
+      max-width: 420px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
 
-button{
-    width:100%;
-    padding:12px;
-    margin-top:15px;
-    background:#4f6df5;
-    color:white;
-    border:none;
-    border-radius:8px;
-    font-size:16px;
-    cursor:pointer;
-}
+    .screen.active { display: block; }
 
-button:hover{
-    background:#3d57d6;
-}
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
 
-/* dashboard layout */
-.dashboard{
-    display:flex;
-    width:100%;
-}
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
 
-/* sidebar */
-.sidebar{
-    width:250px;
-    background:#fff;
-    padding:20px;
-    box-shadow:2px 0 10px rgba(0,0,0,0.05);
-}
+    button:hover { background: #1e40af; }
 
-.sidebar h2{
-    color:#4f6df5;
-}
+    .role-btn {
+      margin-top: 15px;
+      background: #10b981;
+    }
 
-.sidebar div{
-    padding:12px;
-    margin:10px 0;
-    background:#f1f3ff;
-    border-radius:8px;
-}
-
-/* content */
-.content{
-    flex:1;
-    padding:30px;
-}
-
-.box{
-    background:white;
-    padding:20px;
-    margin-bottom:20px;
-    border-radius:12px;
-    box-shadow:0 5px 20px rgba(0,0,0,0.08);
-}
-</style>
+    .small {
+      font-size: 14px;
+      color: #666;
+      margin-top: 10px;
+    }
+  </style>
 </head>
 
 <body>
 
-<!-- LOGIN SCREEN -->
-<div class="screen active center" id="login">
-<div class="card">
-<h2>HealthMirror</h2>
-<p>Your lifetime digital health twin</p>
+<!-- NAVBAR -->
+<nav>
+  <a href="#home">Home</a>
+  <a href="#problem">Problem</a>
+  <a href="#description">Description</a>
+  <a href="#literature">Literature Review</a>
+  <a href="#objectives">Objectives</a>
+  <a href="#demo">App Demo</a>
+</nav>
 
-<input placeholder="Phone number">
-<input placeholder="Aadhaar (optional)">
-<button onclick="showScreen('otp')">Send OTP</button>
+<!-- HOME -->
+<section id="home">
+  <h1>Digital Twin Healthcare System</h1>
+  <p>
+    A centralized healthcare platform that creates a lifelong digital twin
+    of a patient by integrating hospital visits, treatments, lab reports,
+    and AI-driven insights.
+  </p>
+</section>
 
-<p style="text-align:center;margin-top:15px;">Login as Doctor</p>
-</div>
-</div>
+<!-- PROBLEM STATEMENT -->
+<section id="problem">
+  <h2>Problem Statement</h2>
+  <div class="card">
+    <p>
+      Healthcare data is fragmented across hospitals and clinics, leading to
+      inefficient diagnosis, repeated tests, and delayed treatment decisions.
+      Doctors lack access to a unified patient history, while patients have
+      limited control over their medical records.
+    </p>
+  </div>
+</section>
 
-<!-- OTP SCREEN -->
-<div class="screen center" id="otp">
-<div class="card">
-<h3>Enter OTP</h3>
-<p>We sent 6 digit code</p>
+<!-- DESCRIPTION -->
+<section id="description">
+  <h2>Project Description</h2>
+  <div class="card">
+    <p>
+      This project proposes a Digital Twin Healthcare System that creates a
+      virtual representation of a patient’s medical lifecycle. It stores
+      hospital visits, treatments, lab reports, and prescriptions in a
+      centralized database accessible by both patients and doctors.
+    </p>
+  </div>
+</section>
 
-<input placeholder="Enter OTP">
-<button onclick="showScreen('role')">Verify & Continue</button>
-</div>
-</div>
+<!-- LITERATURE REVIEW -->
+<section id="literature">
+  <h2>Literature Review</h2>
+  <div class="card">
+    <ul>
+      <li>Electronic Health Record (EHR) systems</li>
+      <li>Digital Twin concepts in healthcare</li>
+      <li>AI-assisted clinical decision support systems</li>
+      <li>Centralized healthcare data platforms</li>
+    </ul>
+  </div>
+</section>
 
-<!-- ROLE SELECT -->
-<div class="screen center" id="role">
-<div class="card">
-<h3>Select Role</h3>
+<!-- OBJECTIVES -->
+<section id="objectives">
+  <h2>Objectives</h2>
+  <div class="card">
+    <ul>
+      <li>Build a centralized healthcare database</li>
+      <li>Create a lifelong digital twin for patients</li>
+      <li>Enable doctor–patient data access</li>
+      <li>Provide scalable backend architecture</li>
+    </ul>
 
-<button onclick="showScreen('patientDash')">Continue as Patient</button>
-<button style="background:#22a06b" onclick="showScreen('doctorDash')">Continue as Doctor</button>
-</div>
-</div>
+    <h3>Technology Stack</h3>
+    <ul>
+      <li>Frontend: HTML, CSS, JavaScript</li>
+      <li>Backend: Node.js, Express</li>
+      <li>Database: MySQL</li>
+    </ul>
+  </div>
+</section>
 
-<!-- PATIENT DASHBOARD -->
-<div class="screen dashboard" id="patientDash">
+<!-- APP DEMO -->
+<section id="demo">
+  <h2>Application Demo</h2>
 
-<div class="sidebar">
-<h2>HealthMirror</h2>
-<div>My Digital Twin</div>
-<div>Treatment History</div>
-<div>Lab Reports</div>
-<div>Prescriptions</div>
-<button onclick="showScreen('login')">Logout</button>
-</div>
+  <!-- LOGIN -->
+  <div class="screen active" id="login">
+    <h3>HealthMirror Login</h3>
+    <input placeholder="Phone Number" />
+    <input placeholder="Aadhaar (Optional)" />
+    <button onclick="show('otp')">Send OTP</button>
+  </div>
 
-<div class="content">
-<h2>Patient Dashboard</h2>
+  <!-- OTP -->
+  <div class="screen" id="otp">
+    <h3>Enter OTP</h3>
+    <input placeholder="6-digit OTP" />
+    <button onclick="show('role')">Verify</button>
+  </div>
 
-<div class="box">
-<h3>Lifetime Summary</h3>
-<p>Total Visits: 47</p>
-<p>Years on record: 12</p>
-</div>
+  <!-- ROLE -->
+  <div class="screen" id="role">
+    <h3>Select Role</h3>
+    <button class="role-btn" onclick="show('patient')">Continue as Patient</button>
+    <button class="role-btn" onclick="show('doctor')">Continue as Doctor</button>
+  </div>
 
-<div class="box">
-<h3>Chronic Conditions</h3>
-<p>Hypertension, Diabetes</p>
-</div>
+  <!-- PATIENT -->
+  <div class="screen" id="patient">
+    <h3>Patient Dashboard</h3>
+    <p><b>Name:</b> Vikas Kumar</p>
+    <p><b>Chronic Conditions:</b> Hypertension, Type 2 Diabetes</p>
+    <p><b>Risk Score:</b> Moderate</p>
+    <button onclick="show('role')">Logout</button>
+  </div>
 
-<div class="box">
-<h3>Recent Treatments</h3>
-<p>Hypertension Management</p>
-<p>Diabetes Follow-up</p>
-</div>
-
-<div class="box">
-<h3>Risk Score</h3>
-<p>65/100 - Moderate risk</p>
-</div>
-
-</div>
-</div>
-
-<!-- DOCTOR DASHBOARD -->
-<div class="screen dashboard" id="doctorDash">
-
-<div class="sidebar">
-<h2>Doctor Panel</h2>
-<div>Patient Records</div>
-<div>Add Treatment</div>
-<div>Lab Reports</div>
-<div>AI Assistant</div>
-<button onclick="showScreen('login')">Logout</button>
-</div>
-
-<div class="content">
-<h2>Doctor Dashboard</h2>
-
-<div class="box">
-<h3>Patient Digital Twin</h3>
-<p>Name: Rajesh Kumar</p>
-<p>Age: 45</p>
-</div>
-
-<div class="box">
-<h3>Enter Treatment</h3>
-<input placeholder="Diagnosis">
-<input placeholder="Medication">
-<input placeholder="Procedure">
-<button>Save Record</button>
-</div>
-
-<div class="box">
-<h3>Lab Report</h3>
-<p>Total Cholesterol: 225</p>
-<p>LDL: 145</p>
-<p>HDL: 45</p>
-</div>
-
-</div>
-</div>
+  <!-- DOCTOR -->
+  <div class="screen" id="doctor">
+    <h3>Doctor Dashboard</h3>
+    <p><b>Patient:</b> Rajesh Kumar</p>
+    <p><b>Recent Treatment:</b> Hypertension Management</p>
+    <button onclick="show('role')">Logout</button>
+  </div>
+</section>
 
 <script>
-function showScreen(id){
-    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
-}
+  }
 </script>
 
 </body>
 </html>
-
