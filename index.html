@@ -1,232 +1,318 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Digital Twin Healthcare System</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HealthMirror - Digital Twin Healthcare</title>
 
-  <style>
-    * { box-sizing: border-box; font-family: Arial, sans-serif; }
-    body { margin: 0; background: #f4f6f9; color: #333; }
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Segoe UI, sans-serif;
+}
 
-    /* Navbar */
-    nav {
-      position: fixed;
-      top: 0;
-      width: 100%;
-      background: #1f2937;
-      padding: 15px 40px;
-      display: flex;
-      gap: 25px;
-      z-index: 1000;
-    }
-    nav a {
-      color: #fff;
-      text-decoration: none;
-      font-weight: bold;
-    }
+body{
+background:#f4f7fb;
+color:#222;
+}
 
-    section {
-      padding: 80px 60px;
-      min-height: 100vh;
-    }
+/* HEADER */
+header{
+background:#0b1a40;
+color:white;
+padding:20px;
+text-align:center;
+}
 
-    h1 { color: #1f2937; }
-    h2 { color: #2563eb; margin-top: 40px; }
+header h1{
+font-size:28px;
+}
 
-    /* Home */
-    #home {
-      background: linear-gradient(135deg, #2563eb, #1e40af);
-      color: white;
-      text-align: center;
-    }
-    #home h1 { font-size: 42px; color: white; }
-    #home p { font-size: 18px; max-width: 800px; margin: auto; }
+header p{
+font-size:14px;
+opacity:.8;
+}
 
-    /* Content cards */
-    .card {
-      background: white;
-      padding: 30px;
-      margin-top: 20px;
-      border-radius: 10px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
-    }
+/* LAYOUT */
+.container{
+display:flex;
+}
 
-    /* Demo screens */
-    .screen {
-      display: none;
-      max-width: 420px;
-      margin: auto;
-      background: white;
-      padding: 25px;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-    }
+/* SIDEBAR */
+.sidebar{
+width:260px;
+background:#111827;
+color:white;
+min-height:100vh;
+padding:25px;
+position:fixed;
+}
 
-    .screen.active { display: block; }
+.sidebar h2{
+margin-bottom:20px;
+font-size:20px;
+}
 
-    input, button {
-      width: 100%;
-      padding: 12px;
-      margin-top: 10px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-    }
+.sidebar a{
+display:block;
+color:#cbd5e1;
+text-decoration:none;
+margin:12px 0;
+font-size:15px;
+}
 
-    button {
-      background: #2563eb;
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-    }
+.sidebar a:hover{
+color:white;
+}
 
-    button:hover { background: #1e40af; }
+/* MAIN */
+.main{
+margin-left:280px;
+padding:40px;
+}
 
-    .role-btn {
-      margin-top: 15px;
-      background: #10b981;
-    }
+/* SECTION */
+section{
+margin-bottom:60px;
+background:white;
+padding:30px;
+border-radius:12px;
+box-shadow:0 2px 8px rgba(0,0,0,0.05);
+}
 
-    .small {
-      font-size: 14px;
-      color: #666;
-      margin-top: 10px;
-    }
-  </style>
+section h2{
+margin-bottom:15px;
+color:#0b1a40;
+}
+
+/* WIREFRAME GRID */
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+gap:20px;
+margin-top:20px;
+}
+
+.card{
+background:#f9fafc;
+padding:20px;
+border-radius:12px;
+box-shadow:0 2px 6px rgba(0,0,0,0.08);
+}
+
+/* PHONE UI */
+.phone{
+background:white;
+border-radius:25px;
+padding:20px;
+box-shadow:0 6px 20px rgba(0,0,0,0.15);
+min-height:420px;
+}
+
+.phone h3{
+margin-bottom:10px;
+}
+
+input{
+width:100%;
+padding:10px;
+margin:8px 0;
+border-radius:8px;
+border:1px solid #ccc;
+}
+
+button{
+width:100%;
+padding:10px;
+border:none;
+background:#2563eb;
+color:white;
+border-radius:8px;
+margin-top:10px;
+cursor:pointer;
+}
+
+button:hover{
+background:#1e40af;
+}
+
+/* DASHBOARD */
+.dashboard{
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:12px;
+margin-top:10px;
+}
+
+.box{
+background:#eef2ff;
+padding:12px;
+border-radius:8px;
+font-size:14px;
+}
+
+footer{
+text-align:center;
+padding:20px;
+color:#666;
+}
+</style>
 </head>
 
 <body>
 
-<!-- NAVBAR -->
-<nav>
-  <a href="#home">Home</a>
-  <a href="#problem">Problem</a>
-  <a href="#description">Description</a>
-  <a href="#literature">Literature Review</a>
-  <a href="#objectives">Objectives</a>
-  <a href="#demo">App Demo</a>
-</nav>
+<header>
+<h1>HealthMirror – Digital Twin Healthcare</h1>
+<p>Ananya Gupta | Reg No: 2427030166 | Guide: Dr Sayar Singh Shekhawat</p>
+</header>
 
-<!-- HOME -->
-<section id="home">
-  <h1>Digital Twin Healthcare System</h1>
-  <p>
-    A centralized healthcare platform that creates a lifelong digital twin
-    of a patient by integrating hospital visits, treatments, lab reports,
-    and AI-driven insights.
-  </p>
-</section>
+<div class="container">
 
-<!-- PROBLEM STATEMENT -->
+<!-- SIDEBAR -->
+<div class="sidebar">
+<h2>Project Sections</h2>
+<a href="#problem">Problem Statement</a>
+<a href="#description">Project Description</a>
+<a href="#literature">Literature Review</a>
+<a href="#features">System Features</a>
+<a href="#screens">UI Screens</a>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+<!-- PROBLEM -->
 <section id="problem">
-  <h2>Problem Statement</h2>
-  <div class="card">
-    <p>
-      Healthcare data is fragmented across hospitals and clinics, leading to
-      inefficient diagnosis, repeated tests, and delayed treatment decisions.
-      Doctors lack access to a unified patient history, while patients have
-      limited control over their medical records.
-    </p>
-  </div>
+<h2>Problem Statement</h2>
+<p>
+Modern healthcare systems store patient data in fragmented systems across hospitals, labs and clinics. 
+Patients and doctors do not have access to a unified lifetime health record. This results in repeated tests,
+inefficient diagnosis, delayed treatments and lack of predictive healthcare insights.
+</p>
+<p>
+There is a need for a centralized digital twin healthcare system that continuously mirrors patient health,
+provides real-time monitoring and helps doctors make data-driven decisions.
+</p>
 </section>
 
 <!-- DESCRIPTION -->
 <section id="description">
-  <h2>Project Description</h2>
-  <div class="card">
-    <p>
-      This project proposes a Digital Twin Healthcare System that creates a
-      virtual representation of a patient’s medical lifecycle. It stores
-      hospital visits, treatments, lab reports, and prescriptions in a
-      centralized database accessible by both patients and doctors.
-    </p>
-  </div>
+<h2>Project Description</h2>
+<p>
+HealthMirror is a Digital Twin Healthcare platform that creates a virtual representation of a patient’s
+health profile by integrating medical history, lab reports, treatments and risk predictions.
+</p>
+
+<p>
+The system allows patients to store and view lifetime medical data and enables doctors to monitor patient
+health, prescribe treatments and analyze trends. It provides a unified platform for predictive healthcare
+using digital twin technology.
+</p>
 </section>
 
-<!-- LITERATURE REVIEW -->
+<!-- LITERATURE -->
 <section id="literature">
-  <h2>Literature Review</h2>
-  <div class="card">
-    <ul>
-      <li>Electronic Health Record (EHR) systems</li>
-      <li>Digital Twin concepts in healthcare</li>
-      <li>AI-assisted clinical decision support systems</li>
-      <li>Centralized healthcare data platforms</li>
-    </ul>
-  </div>
+<h2>Literature Review</h2>
+<ul>
+<li>Digital Twin technology has been widely used in Industry 4.0 and is now emerging in healthcare.</li>
+<li>Research shows digital twins improve predictive diagnosis and personalized treatment planning.</li>
+<li>Existing hospital systems lack unified patient lifetime data tracking.</li>
+<li>Healthcare dashboards help doctors analyze patient health trends and risks.</li>
+<li>Secure centralized medical data platforms improve healthcare efficiency.</li>
+</ul>
 </section>
 
-<!-- OBJECTIVES -->
-<section id="objectives">
-  <h2>Objectives</h2>
-  <div class="card">
-    <ul>
-      <li>Build a centralized healthcare database</li>
-      <li>Create a lifelong digital twin for patients</li>
-      <li>Enable doctor–patient data access</li>
-      <li>Provide scalable backend architecture</li>
-    </ul>
-
-    <h3>Technology Stack</h3>
-    <ul>
-      <li>Frontend: HTML, CSS, JavaScript</li>
-      <li>Backend: Node.js, Express</li>
-      <li>Database: MySQL</li>
-    </ul>
-  </div>
+<!-- FEATURES -->
+<section id="features">
+<h2>System Features</h2>
+<div class="grid">
+<div class="card">Patient Digital Twin Dashboard</div>
+<div class="card">Doctor Monitoring Panel</div>
+<div class="card">Lab Report Management</div>
+<div class="card">Risk Prediction System</div>
+<div class="card">Treatment Tracking</div>
+<div class="card">Centralized Database</div>
+</div>
 </section>
 
-<!-- APP DEMO -->
-<section id="demo">
-  <h2>Application Demo</h2>
+<!-- SCREENS -->
+<section id="screens">
+<h2>System UI Screens</h2>
 
-  <!-- LOGIN -->
-  <div class="screen active" id="login">
-    <h3>HealthMirror Login</h3>
-    <input placeholder="Phone Number" />
-    <input placeholder="Aadhaar (Optional)" />
-    <button onclick="show('otp')">Send OTP</button>
-  </div>
+<div class="grid">
 
-  <!-- OTP -->
-  <div class="screen" id="otp">
-    <h3>Enter OTP</h3>
-    <input placeholder="6-digit OTP" />
-    <button onclick="show('role')">Verify</button>
-  </div>
+<!-- LOGIN -->
+<div class="phone">
+<h3>Patient Login</h3>
+<input placeholder="Phone Number">
+<input placeholder="Aadhar Number">
+<button>Send OTP</button>
+</div>
 
-  <!-- ROLE -->
-  <div class="screen" id="role">
-    <h3>Select Role</h3>
-    <button class="role-btn" onclick="show('patient')">Continue as Patient</button>
-    <button class="role-btn" onclick="show('doctor')">Continue as Doctor</button>
-  </div>
+<!-- OTP -->
+<div class="phone">
+<h3>OTP Verification</h3>
+<input placeholder="Enter OTP">
+<button>Verify</button>
+</div>
 
-  <!-- PATIENT -->
-  <div class="screen" id="patient">
-    <h3>Patient Dashboard</h3>
-    <p><b>Name:</b> Vikas Kumar</p>
-    <p><b>Chronic Conditions:</b> Hypertension, Type 2 Diabetes</p>
-    <p><b>Risk Score:</b> Moderate</p>
-    <button onclick="show('role')">Logout</button>
-  </div>
+<!-- ROLE -->
+<div class="phone">
+<h3>Select Role</h3>
+<button>Continue as Patient</button>
+<button style="background:#16a34a">Continue as Doctor</button>
+</div>
 
-  <!-- DOCTOR -->
-  <div class="screen" id="doctor">
-    <h3>Doctor Dashboard</h3>
-    <p><b>Patient:</b> Rajesh Kumar</p>
-    <p><b>Recent Treatment:</b> Hypertension Management</p>
-    <button onclick="show('role')">Logout</button>
-  </div>
+<!-- PATIENT DASHBOARD -->
+<div class="phone">
+<h3>Patient Dashboard</h3>
+<div class="dashboard">
+<div class="box">Total Visits: 47</div>
+<div class="box">Years: 12</div>
+<div class="box">Risk Score: Medium</div>
+<div class="box">Reports: 20</div>
+</div>
+</div>
+
+<!-- LAB REPORT -->
+<div class="phone">
+<h3>Lab Report</h3>
+<div class="box">Cholesterol: 225</div>
+<div class="box">LDL: 145</div>
+<div class="box">HDL: 45</div>
+</div>
+
+<!-- DOCTOR PANEL -->
+<div class="phone">
+<h3>Doctor Dashboard</h3>
+<div class="dashboard">
+<div class="box">Patients: 120</div>
+<div class="box">Appointments</div>
+<div class="box">Add Treatment</div>
+<div class="box">Reports</div>
+</div>
+</div>
+
+<!-- ADD TREATMENT -->
+<div class="phone">
+<h3>Add Treatment</h3>
+<input placeholder="Diagnosis">
+<input placeholder="Medicine">
+<button>Save Record</button>
+</div>
+
+</div>
 </section>
 
-<script>
-  function show(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-  }
-</script>
+<footer>
+© 2026 HealthMirror Digital Twin Healthcare | PBL Project
+</footer>
+
+</div>
+</div>
 
 </body>
 </html>
+
