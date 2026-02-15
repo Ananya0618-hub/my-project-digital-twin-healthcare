@@ -1,1 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Twin Healthcare</title>
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+body{
+    background:#020617;
+    color:white;
+    font-family: 'Segoe UI', sans-serif;
+}
+.glass{
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
+    border:1px solid rgba(255,255,255,0.1);
+}
+.gradient{
+    background: linear-gradient(90deg,#3b82f6,#a855f7);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+}
+</style>
+</head>
+
+<body>
+
+<!-- NAVBAR -->
+<nav class="fixed w-full bg-black/40 backdrop-blur-md p-4 flex justify-between z-50">
+<h1 class="text-xl font-bold gradient">Digital Twin Healthcare</h1>
+<div class="space-x-6 text-sm">
+<a href="#about">About</a>
+<a href="#features">Features</a>
+<a href="#tech">Tech</a>
+<a href="#team">Team</a>
+</div>
+</nav>
+
+<!-- HERO -->
+<section class="h-screen flex flex-col justify-center items-center text-center px-6">
+<h1 class="text-6xl font-extrabold gradient mb-6">DIGITAL TWIN HEALTHCARE</h1>
+<p class="max-w-2xl text-gray-400 text-lg">
+A smart healthcare system that creates a digital twin of patients by storing
+medical history, hospital visits and treatment records for real-time monitoring
+and better diagnosis.
+</p>
+
+<div class="mt-8">
+<a href="http://localhost:5000" target="_blank"
+class="bg-blue-600 px-8 py-3 rounded-full font-bold hover:bg-blue-500">
+Test Backend Connection
+</a>
+</div>
+</section>
+
+<!-- ABOUT -->
+<section id="about" class="py-20 px-10">
+<h2 class="text-4xl font-bold mb-8 text-center">Project Overview</h2>
+
+<div class="glass p-8 rounded-3xl max-w-4xl mx-auto">
+<p class="text-gray-400 leading-relaxed">
+Digital Twin Healthcare is a database-driven system that maintains
+patient records, hospital visits and treatment history.
+It helps hospitals digitally track patients and provides
+quick access to medical data for better decision making.
+</p>
+</div>
+</section>
+
+<!-- FEATURES -->
+<section id="features" class="py-20 px-10">
+<h2 class="text-4xl font-bold text-center mb-12">Key Features</h2>
+
+<div class="grid md:grid-cols-3 gap-8">
+
+<div class="glass p-8 rounded-3xl text-center">
+<h3 class="text-xl font-bold mb-3">Patient Records</h3>
+<p class="text-gray-400">Store Aadhaar, name, DOB and contact details</p>
+</div>
+
+<div class="glass p-8 rounded-3xl text-center">
+<h3 class="text-xl font-bold mb-3">Hospital Visits</h3>
+<p class="text-gray-400">Track patient visit history and reasons</p>
+</div>
+
+<div class="glass p-8 rounded-3xl text-center">
+<h3 class="text-xl font-bold mb-3">Treatment Records</h3>
+<p class="text-gray-400">Store diagnosis and treatment details</p>
+</div>
+
+</div>
+</section>
+
+<!-- TECH STACK -->
+<section id="tech" class="py-20 px-10">
+<h2 class="text-4xl font-bold text-center mb-12">Tech Stack</h2>
+
+<div class="grid md:grid-cols-4 gap-8 text-center">
+
+<div class="glass p-6 rounded-2xl">HTML</div>
+<div class="glass p-6 rounded-2xl">Node.js</div>
+<div class="glass p-6 rounded-2xl">Express.js</div>
+<div class="glass p-6 rounded-2xl">MySQL</div>
+
+</div>
+</section>
+
+<!-- TEAM -->
+<section id="team" class="py-20 text-center">
+<h2 class="text-3xl font-bold mb-8">Project By</h2>
+
+<div class="glass inline-block px-12 py-8 rounded-3xl">
+<h3 class="text-xl font-bold">Ananya Gupta</h3>
+<p class="text-gray-400">Digital Twin Healthcare Project</p>
+</div>
+</section>
+
+<!-- FOOTER -->
+<footer class="py-10 text-center text-gray-500 border-t border-gray-800">
+Manipal University Jaipur • 2026
+</footer>
+
+</body>
+</html>
 
