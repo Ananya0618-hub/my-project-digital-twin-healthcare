@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 const express = require("express");
 const cors = require("cors");
 
@@ -23,3 +24,6 @@ app.listen(PORT,() => {
 });
 
 setInterval(() => {}, 1000);
+=======
+//Backend starting point
+>>>>>>> c625a57df8db88d1f3c898767668de553f00112a
