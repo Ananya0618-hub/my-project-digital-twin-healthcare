@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HealthMirror - Digital Twin Healthcare</title>
+
+<!-- FONT (same clean template style) -->
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:'Poppins',sans-serif;
+}
+
+body{
+background:#f5f7fb;
+color:#111827;
+}
+
+/* NAVBAR */
+nav{
+background:white;
+padding:18px 60px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+box-shadow:0 2px 8px rgba(0,0,0,0.05);
+position:sticky;
+top:0;
+}
+
+nav h2{
+color:#2563eb;
+}
+
+nav a{
+margin-left:25px;
+text-decoration:none;
+color:#374151;
+font-weight:500;
+}
+
+/* HERO */
+.hero{
+display:flex;
+align-items:center;
+justify-content:space-between;
+padding:70px 80px;
+background:linear-gradient(120deg,#2563eb,#06b6d4);
+color:white;
+}
+
+.hero-text{
+max-width:600px;
+}
+
+.hero h1{
+font-size:42px;
+margin-bottom:15px;
+}
+
+.hero p{
+font-size:18px;
+opacity:.9;
+}
+
+.hero button{
+margin-top:20px;
+padding:14px 26px;
+border:none;
+border-radius:8px;
+background:white;
+color:#2563eb;
+font-weight:600;
+cursor:pointer;
+}
+
+/* SECTION */
+section{
+padding:60px 80px;
+}
+
+section h2{
+margin-bottom:20px;
+color:#0f172a;
+}
+
+/* CARDS */
+.card-container{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+gap:20px;
+}
+
+.card{
+background:white;
+padding:20px;
+border-radius:12px;
+box-shadow:0 4px 10px rgba(0,0,0,0.06);
+}
+
+/* WORKFLOW */
+.workflow{
+display:flex;
+flex-direction:column;
+gap:60px;
+margin-top:40px;
+}
+
+.screen{
+background:white;
+padding:30px;
+border-radius:15px;
+box-shadow:0 6px 18px rgba(0,0,0,0.08);
+}
+
+.phone{
+width:320px;
+background:#f9fafc;
+padding:20px;
+border-radius:25px;
+margin:auto;
+box-shadow:0 10px 25px rgba(0,0,0,0.15);
+}
+
+.phone h3{
+margin-bottom:15px;
+}
+
+input{
+width:100%;
+padding:10px;
+margin:8px 0;
+border-radius:8px;
+border:1px solid #ccc;
+}
+
+button{
+width:100%;
+padding:10px;
+border:none;
+background:#2563eb;
+color:white;
+border-radius:8px;
+margin-top:10px;
+cursor:pointer;
+}
+
+.box{
+background:#eef2ff;
+padding:10px;
+margin:6px 0;
+border-radius:8px;
+font-size:14px;
+}
+
+/* FOOTER */
+footer{
+background:#111827;
+color:white;
+text-align:center;
+padding:25px;
+margin-top:40px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- NAVBAR -->
+<nav>
+<h2>HealthMirror</h2>
+<div>
+<a href="#problem">Problem</a>
+<a href="#description">Description</a>
+<a href="#literature">Literature</a>
+<a href="#workflow">Workflow</a>
+</div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+<div class="hero-text">
+<h1>HealthMirror – Digital Twin Healthcare</h1>
+<p>A centralized digital twin platform to monitor lifetime health records, predict risks and assist doctors with real-time patient insights.</p>
+<button>View System</button>
+</div>
+
+<div>
+<h3>By Ananya Gupta</h3>
+<p>Reg No: 2427030166</p>
+<p>Guide: Dr Sayar Singh Shekhawat</p>
+</div>
+</div>
+
+<!-- PROBLEM -->
+<section id="problem">
+<h2>Problem Statement</h2>
+<p>
+Healthcare data today is fragmented across hospitals, clinics and labs. Patients lack a unified health record,
+while doctors cannot access complete medical history instantly. This leads to repeated tests, delayed diagnosis
+and inefficient treatment planning.
+</p>
+<p>
+A Digital Twin Healthcare System is needed to create a virtual representation of patient health that continuously
+updates and assists in predictive healthcare.
+</p>
+</section>
+
+<!-- DESCRIPTION -->
+<section id="description">
+<h2>Project Description</h2>
+<p>
+HealthMirror is a digital twin healthcare platform that maintains a virtual replica of patient health data including
+medical history, lab reports, medications and risk analysis. The system provides dashboards for both patients and
+doctors to monitor and manage healthcare efficiently.
+</p>
+</section>
+
+<!-- LITERATURE -->
+<section id="literature">
+<h2>Literature Review</h2>
+<div class="card-container">
+<div class="card">Digital Twin technology enables real-time monitoring of systems.</div>
+<div class="card">Healthcare analytics improves diagnosis and treatment.</div>
+<div class="card">Centralized EHR systems improve efficiency.</div>
+<div class="card">Predictive healthcare reduces long-term risks.</div>
+</div>
+</section>
+
+<!-- WORKFLOW -->
+<section id="workflow">
+<h2>Application Workflow</h2>
+
+<div class="workflow">
+
+<!-- SCREEN 1 -->
+<div class="screen">
+<h3>Step 1: Patient Login</h3>
+<div class="phone">
+<input placeholder="Enter Phone Number">
+<input placeholder="Enter Aadhaar">
+<button>Send OTP</button>
+</div>
+</div>
+
+<!-- SCREEN 2 -->
+<div class="screen">
+<h3>Step 2: OTP Verification</h3>
+<div class="phone">
+<input placeholder="Enter OTP">
+<button>Verify</button>
+</div>
+</div>
+
+<!-- SCREEN 3 -->
+<div class="screen">
+<h3>Step 3: Select Role</h3>
+<div class="phone">
+<button>Continue as Patient</button>
+<button style="background:#16a34a">Continue as Doctor</button>
+</div>
+</div>
+
+<!-- SCREEN 4 -->
+<div class="screen">
+<h3>Step 4: Patient Dashboard</h3>
+<div class="phone">
+<div class="box">Total Visits: 47</div>
+<div class="box">Risk Score: Medium</div>
+<div class="box">Chronic: Diabetes</div>
+<div class="box">Reports Available</div>
+</div>
+</div>
+
+<!-- SCREEN 5 -->
+<div class="screen">
+<h3>Step 5: Lab Reports</h3>
+<div class="phone">
+<div class="box">Cholesterol: 225</div>
+<div class="box">LDL: 145</div>
+<div class="box">HDL: 45</div>
+</div>
+</div>
+
+<!-- SCREEN 6 -->
+<div class="screen">
+<h3>Step 6: Doctor Dashboard</h3>
+<div class="phone">
+<div class="box">Patient Digital Twin</div>
+<div class="box">Add Treatment</div>
+<div class="box">View Reports</div>
+<div class="box">Risk Analysis</div>
+</div>
+</div>
+
+<!-- SCREEN 7 -->
+<div class="screen">
+<h3>Step 7: Add Treatment</h3>
+<div class="phone">
+<input placeholder="Diagnosis">
+<input placeholder="Medication">
+<button>Save Treatment</button>
+</div>
+</div>
+
+</div>
+</section>
+
+<footer>
+© 2026 HealthMirror Digital Twin Healthcare | PBL Project
+</footer>
+
+</body>
+</html>

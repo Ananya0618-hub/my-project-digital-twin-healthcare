@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HealthMirror App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Splash Screen -->
+  <section id="splash" class="screen active">
+    <div class="phone-card">
+      <h1>HealthMirror</h1>
+      <p>Digital Twin Healthcare</p>
+      <button onclick="showScreen('login')">Get Started</button>
+    </div>
+  </section>
+
+  <!-- Login Screen -->
+  <section id="login" class="screen">
+    <div class="phone-card">
+      <h2>Login</h2>
+      <input type="text" placeholder="Enter Phone Number" />
+      <input type="text" placeholder="Enter Aadhaar ID" />
+      <button onclick="showScreen('otp')">Send OTP</button>
+    </div>
+  </section>
+
+  <!-- OTP Screen -->
+  <section id="otp" class="screen">
+    <div class="phone-card">
+      <h2>OTP Verification</h2>
+      <input type="text" placeholder="Enter 6-digit OTP" />
+      <button onclick="showScreen('role')">Verify</button>
+    </div>
+  </section>
+
+  <!-- Role Selection Screen -->
+  <section id="role" class="screen">
+    <div class="phone-card">
+      <h2>Select Role</h2>
+      <button onclick="showScreen('patientDashboard')">Continue as Patient</button>
+      <button class="green-btn" onclick="showScreen('doctorDashboard')">Continue as Doctor</button>
+    </div>
+  </section>
+
+  <!-- Patient Dashboard -->
+  <section id="patientDashboard" class="screen">
+    <div class="phone-card">
+      <h2>Patient Dashboard</h2>
+      <div class="info-box">Total Visits: 47</div>
+      <div class="info-box">Risk Score: Moderate</div>
+      <div class="info-box">Chronic Condition: Diabetes</div>
+      <div class="info-box">Lab Reports Available</div>
+
+<button onclick="showScreen('patientProfile')">View Profile</button>
+<button onclick="showScreen('visitHistory')">View Visits</button>
+<button onclick="showScreen('labReports')">View Lab Reports</button>
+<button onclick="showScreen('treatmentDetails')">View Treatments</button>
+<button onclick="showScreen('digitalTwinSummary')">View Digital Twin</button>
+
+      <button onclick="showScreen('login')">Logout</button>
+    </div>
+  </section>
+
+  <!-- Doctor Dashboard -->
+  <section id="doctorDashboard" class="screen">
+    <div class="phone-card">
+      <h2>Doctor Dashboard</h2>
+      <div class="info-box">Patient: Rajesh Kumar</div>
+      <div class="info-box">Condition: Hypertension</div>
+      <div class="info-box">Recent Report: Cholesterol High</div>
+
+<button onclick="showScreen('addTreatment')">Add Treatment</button>
+<button onclick="showScreen('visitHistory')">View Patient History</button>
+<button onclick="showScreen('aiHistory')">AI Interaction History</button>
+<button onclick="showScreen('login')">Logout</button>
+    </div>
+  </section>
+
+  <!-- Add Treatment Screen -->
+  <section id="addTreatment" class="screen">
+    <div class="phone-card">
+      <h2>Add Treatment</h2>
+      <input type="text" placeholder="Enter Diagnosis" />
+      <input type="text" placeholder="Enter Medication" />
+      <input type="text" placeholder="Enter Procedure" />
+      <button onclick="showScreen('doctorDashboard')">Save Treatment</button>
+    </div>
+  </section>
+
+  <section>
+    <section id="patientProfile" class="screen">
+  <div class="phone-card">
+    <h2>Patient Profile</h2>
+    <div class="info-box">Name: Aarav Shah</div>
+    <div class="info-box">Aadhaar: 900000000000</div>
+    <div class="info-box">Gender: Male</div>
+    <div class="info-box">DOB: 1998-03-12</div>
+    <div class="info-box">Contact: 9876543210</div>
+
+    <button onclick="showScreen('patientDashboard')">Back to Dashboard</button>
+  </div>
+</section>
+<section id="visitHistory" class="screen">
+  <div class="phone-card">
+    <h2>Visit History</h2>
+    <div class="info-box">City Hospital — 2025-10-12 — Fever</div>
+    <div class="info-box">Sunrise Clinic — 2025-08-03 — Diabetes Follow-up</div>
+    <div class="info-box">Metro Hospital — 2025-06-21 — Blood Test</div>
+
+    <button onclick="showScreen('patientDashboard')">Back to Dashboard</button>
+  </div>
+</section>
+<section id="treatmentDetails" class="screen">
+  <div class="phone-card">
+    <h2>Treatment Details</h2>
+    <div class="info-box">Doctor: Dr. Mehta</div>
+    <div class="info-box">Diagnosis: Hypertension</div>
+    <div class="info-box">Treatment: BP Management</div>
+    <div class="info-box">Medicines: Amlodipine</div>
+
+    <button onclick="showScreen('patientDashboard')">Back to Dashboard</button>
+  </div>
+</section>
+
+<section id="labReports" class="screen">
+  <div class="phone-card">
+    <h2>Lab Reports</h2>
+    <div class="info-box">Cholesterol: 225 mg/dL</div>
+    <div class="info-box">LDL: 145 mg/dL</div>
+    <div class="info-box">HDL: 45 mg/dL</div>
+    <div class="info-box">Test Date: 2025-11-10</div>
+
+    <button onclick="showScreen('patientDashboard')">Back to Dashboard</button>
+  </div>
+</section>
+
+<section id="digitalTwinSummary" class="screen">
+  <div class="phone-card">
+    <h2>Digital Twin Summary</h2>
+    <div class="info-box">Lifetime Summary: 12 years of records</div>
+    <div class="info-box">Chronic Conditions: Diabetes, Hypertension</div>
+    <div class="info-box">Risk Level: Moderate</div>
+    <div class="info-box">AI Recommendation: Maintain diet, exercise regularly, monitor BP monthly</div>
+
+    <button onclick="showScreen('patientDashboard')">Back to Dashboard</button>
+  </div>
+</section>
+
+<section id="aiHistory" class="screen">
+  <div class="phone-card">
+    <h2>AI Interaction History</h2>
+    <div class="info-box">Prompt: How to improve immunity?</div>
+    <div class="info-box">Response: Balanced diet, sleep, hydration, regular activity</div>
+    <div class="info-box">Time: 2025-11-12 10:30 AM</div>
+
+    <button onclick="showScreen('doctorDashboard')">Back to Dashboard</button>
+  </div>
+</section>
+
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
