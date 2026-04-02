@@ -1,0 +1,30 @@
+let treatments = [];
+
+// ADD treatment
+const addTreatment = (req, res) => {
+  const { aadhaar_id, diagnosis, medication } = req.body;
+
+  const newTreatment = {
+    aadhaar_id,
+    diagnosis,
+    medication,
+    date: new Date().toLocaleString()
+  };
+
+  treatments.push(newTreatment);
+
+  res.json({ message: "Treatment saved", data: newTreatment });
+};
+
+// GET treatments by patient
+const getTreatments = (req, res) => {
+  const { aadhaar_id } = req.params;
+
+  const patientTreatments = treatments.filter(
+    t => t.aadhaar_id === aadhaar_id
+  );
+
+  res.json(patientTreatments);
+};
+
+module.exports = { addTreatment, getTreatments };

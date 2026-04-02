@@ -3,6 +3,7 @@ const cors = require("cors");
 
 const patientRoutes = require("./routes/patientRoutes");
 const digitalTwinRoutes = require("./routes/digitalTwinRoutes");
+const treatmentRoutes = require("./routes/treatmentRoutes"); // ✅ NEW
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.get("/", (req, res) => {
 // Routes
 app.use("/api/patients", patientRoutes);
 app.use("/api/digitaltwin", digitalTwinRoutes);
+app.use("/api/treatments", treatmentRoutes); // ✅ NEW ROUTE
 
 // Port
 const PORT = process.env.PORT || 3001;
