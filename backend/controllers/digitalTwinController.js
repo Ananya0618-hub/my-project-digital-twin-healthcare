@@ -1,5 +1,3 @@
-// Dummy digital twin controller
-
 exports.getDigitalTwinByPatient = (req, res) => {
   const { aadhaar_id } = req.params;
 
@@ -7,7 +5,6 @@ exports.getDigitalTwinByPatient = (req, res) => {
     aadhaar_id,
     heartRate: 72,
     bloodPressure: "120/80",
-    riskLevel: "Low",
-    prediction: "Stable condition"
+    riskLevel: "Low"
   });
 };
