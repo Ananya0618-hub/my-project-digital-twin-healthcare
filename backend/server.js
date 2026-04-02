@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 const express = require("express");
 const cors = require("cors");
 
@@ -10,20 +9,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Root route
 app.get("/", (req, res) => {
-  res.send("<h1>HealthMirror backend is running</h1>");
+  res.send("<h1>HealthMirror backend is running 🚀</h1>");
 });
 
+// Routes
 app.use("/api/patients", patientRoutes);
 app.use("/api/digitaltwin", digitalTwinRoutes);
 
-const PORT = process.env.PORT|| 3001;
+// Port
+const PORT = process.env.PORT || 3001;
 
-app.listen(PORT,() => {
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-setInterval(() => {}, 1000);
-=======
-//Backend starting point
->>>>>>> c625a57df8db88d1f3c898767668de553f00112a
