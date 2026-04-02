@@ -7,12 +7,9 @@ const db = mysql.createConnection({
   database: "healthmirror"
 });
 
-db.connect((err) => {
-  if (err) {
-    console.error("Database connection failed:", err);
-  } else {
-    console.log("Connected to MySQL database");
-  }
-});
+ db.connect((err) => {
+   if (err) throw err;
+   console.log("Connected to MySQL");
+ });
 
 module.exports = db;

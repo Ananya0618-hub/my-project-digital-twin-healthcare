@@ -1,20 +1,13 @@
-const db = require("../config/db");
+// Dummy digital twin controller
 
-const getDigitalTwinByPatient = (req, res) => {
+exports.getDigitalTwinByPatient = (req, res) => {
   const { aadhaar_id } = req.params;
 
-  db.query(
-    "SELECT * FROM digital_twin_summary WHERE aadhaar_id = ?",
-    [aadhaar_id],
-    (err, results) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      res.json(results[0] || {});
-    }
-  );
-};
-
-module.exports = {
-  getDigitalTwinByPatient
+  res.json({
+    aadhaar_id,
+    heartRate: 72,
+    bloodPressure: "120/80",
+    riskLevel: "Low",
+    prediction: "Stable condition"
+  });
 };

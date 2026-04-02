@@ -1,46 +1,38 @@
-const db = require("../config/db");
+// Dummy controller (no MySQL)
 
-const getAllPatients = (req, res) => {
-  db.query("SELECT * FROM patients", (err, results) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+exports.getAllPatients = (req, res) => {
+  res.json([
+    {
+      aadhaar_id: "1234",
+      name: "Test Patient 1",
+      age: 25,
+      condition: "Healthy"
+    },
+    {
+      aadhaar_id: "5678",
+      name: "Test Patient 2",
+      age: 30,
+      condition: "Diabetes"
     }
-    res.json(results);
+  ]);
+};
+
+exports.getPatientById = (req, res) => {
+  const { aadhaar_id } = req.params;
+
+  res.json({
+    aadhaar_id,
+    name: "Test Patient",
+    age: 28,
+    condition: "Healthy"
   });
 };
 
-const getPatientById = (req, res) => {
-  const { aadhaar_id } = req.params;
+exports.addPatient = (req, res) => {
+  const newPatient = req.body;
 
-  db.query(
-    "SELECT * FROM patients WHERE aadhaar_id = ?",
-    [aadhaar_id],
-    (err, results) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      res.json(results[0] || {});
-    }
-  );
-};
-
-const addPatient = (req, res) => {
-  const { aadhaar_id, name, age, gender, phone } = req.body;
-
-  db.query(
-    "INSERT INTO patients (aadhaar_id, name, age, gender, phone) VALUES (?, ?, ?, ?, ?)",
-    [aadhaar_id, name, age, gender, phone],
-    (err, results) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      res.json({ message: "Patient added successfully", id: results.insertId });
-    }
-  );
-};
-
-module.exports = {
-  getAllPatients,
-  getPatientById,
-  addPatient
+  res.json({
+    message: "Patient added successfully (dummy)",
+    patient: newPatient
+  });
 };
