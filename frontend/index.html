@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HealthMirror</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #f4f6f8;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    input {
+      padding: 10px;
+      margin: 5px;
+      width: 200px;
+    }
+
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      cursor: pointer;
+      border: none;
+      background: #4CAF50;
+      color: white;
+      border-radius: 5px;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    .card {
+      background: white;
+      margin: 15px auto;
+      padding: 15px;
+      width: 300px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    .section {
+      margin: 20px 0;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>🏥 HealthMirror</h1>
+
+<!-- 🔍 SEARCH -->
+<div class="section">
+  <input type="text" id="aadhaarInput" placeholder="Enter Aadhaar ID">
+  <button onclick="searchPatient()">Search</button>
+  <button onclick="loadPatients()">Show All</button>
+</div>
+
+<!-- ➕ ADD PATIENT -->
+<div class="section">
+  <h3>Add Patient</h3>
+  <input type="text" id="name" placeholder="Name">
+  <input type="text" id="aadhaar" placeholder="Aadhaar ID">
+  <button onclick="addPatient()">Add</button>
+</div>
+
+<!-- 🧾 OUTPUT -->
+<div id="patients"></div>
+
+<script>
+
+const BASE_URL = "https://my-project-digital-twin-healthcare.onrender.com";
+
+// ✅ LOAD ALL PATIENTS
+function loadPatients() {
+  fetch(BASE_URL + "/api/patients")
+    .then(res => res.json())
+    .then(showPatients);
+}
+
+// ✅ DISPLAY
+function showPatients(data) {
+  const container = document.getElementById("patients");
+  container.innerHTML = "";
+
+  data.forEach(p => {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    card.innerHTML = `
+      <h3>${p.name}</h3>
+      <p><b>Aadhaar:</b> ${p.aadhaar_id}</p>
+      <button onclick="getDigitalTwin('${p.aadhaar_id}')">View Digital Twin</button>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+// 🔍 SEARCH
+function searchPatient() {
+  const id = document.getElementById("aadhaarInput").value;
+
+  fetch(BASE_URL + "/api/patients/" + id)
+    .then(res => res.json())
+    .then(data => showPatients([data]));
+}
+
+// ➕ ADD PATIENT
+function addPatient() {
+  const name = document.getElementById("name").value;
+  const aadhaar = document.getElementById("aadhaar").value;
+
+  fetch(BASE_URL + "/api/patients", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name: name,
+      aadhaar_id: aadhaar
+    })
+  })
+  .then(res => res.json())
+  .then(() => {
+    alert("Patient added!");
+    loadPatients();
+  });
+}
+
+// 🧠 DIGITAL TWIN
+function getDigitalTwin(id) {
+  fetch(BASE_URL + "/api/digitaltwin/" + id)
+    .then(res => res.json())
+    .then(data => {
+      alert(
+        "Patient Health Info:\n\n" +
+        "Age: " + data.age + "\n" +
+        "Condition: " + data.condition
+      );
+    });
+}
+
+// LOAD DEFAULT
+loadPatients();
+
+</script>
+
+</body>
+</html>

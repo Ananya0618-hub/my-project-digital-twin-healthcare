@@ -1,23 +1,42 @@
-exports.getAllPatients = (req, res) => {
-  res.json([
-    { aadhaar_id: "1234", name: "Test Patient 1" },
-    { aadhaar_id: "5678", name: "Test Patient 2" }
-  ]);
+let patients = [
+  { aadhaar_id: "9999", name: "Rahul" },
+  { aadhaar_id: "7777", name: "Ayush" }
+];
+
+// ✅ GET ALL
+const getAllPatients = (req, res) => {
+  res.json(patients);
 };
 
-exports.getPatientById = (req, res) => {
+// ✅ GET BY ID
+const getPatientById = (req, res) => {
   const { aadhaar_id } = req.params;
 
-  res.json({
-    aadhaar_id,
-    name: "Test Patient",
-    age: 25,
-    condition: "Healthy"
+  const patient = patients.find(p => p.aadhaar_id === aadhaar_id);
+
+  if (!patient) {
+    return res.status(404).json({ message: "Patient not found" });
+  }
+
+  res.json(patient);
+};
+
+// ✅ POST ADD PATIENT
+const addPatient = (req, res) => {
+  const { name, aadhaar_id } = req.body;
+
+  const newPatient = { name, aadhaar_id };
+
+  patients.push(newPatient);
+
+  res.status(201).json({
+    message: "Patient added successfully",
+    patient: newPatient
   });
 };
 
-exports.addPatient = (req, res) => {
-  res.json({
-    message: "Patient added (dummy)"
-  });
+module.exports = {
+  getAllPatients,
+  getPatientById,
+  addPatient
 };
