@@ -1,30 +1,38 @@
-let treatments = [];
+const Treatment = require("../models/Treatment");
 
-// ADD treatment
-const addTreatment = (req, res) => {
-  const { aadhaar_id, diagnosis, medication } = req.body;
-
-  const newTreatment = {
-    aadhaar_id,
-    diagnosis,
-    medication,
-    date: new Date().toLocaleString()
-  };
-
-  treatments.push(newTreatment);
-
-  res.json({ message: "Treatment saved", data: newTreatment });
+// ✅ ADD TREATMENT
+exports.addTreatment = async (req, res) => {
+  try {
+    const newTreatment = new Treatment(req.body);
+    await newTreatment.save();
+    res.json(newTreatment);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to add" });
+  }
 };
 
-// GET treatments by patient
-const getTreatments = (req, res) => {
-  const { aadhaar_id } = req.params;
-
-  const patientTreatments = treatments.filter(
-    t => t.aadhaar_id === aadhaar_id
-  );
-
-  res.json(patientTreatments);
+// ✅ GET TREATMENTS
+exports.getTreatments = async (req, res) => {
+  try {
+    const data = await Treatment.find({
+      aadhaar_id: req.params.aadhaar_id
+    });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch" });
+  }
 };
 
-module.exports = { addTreatment, getTreatments };
+// ✅ DELETE TREATMENT
+exports.deleteTreatment = async (req, res) => {
+  try {
+    console.log("DELETE ID:", req.params.id);
+
+    await Treatment.findByIdAndDelete(req.params.id);
+
+    res.json({ message: "Deleted successfully ✅" });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Delete failed ❌" });
+  }
+};

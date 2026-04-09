@@ -1,212 +1,324 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement
+} from "chart.js";
+
+ChartJS.register(CategoryScale, LinearScale, BarElement);
 
 function App() {
   const [step, setStep] = useState(1);
   const [aadhaar, setAadhaar] = useState("");
-  const [patient, setPatient] = useState(null);
-  const [otp, setOtp] = useState("");
-  const [role, setRole] = useState("");
+  const [password, setPassword] = useState("");
 
-  const API = "https://my-project-digital-twin-healthcare.onrender.com/api/patients";
+  const [activeTab, setActiveTab] = useState("dashboard");
 
-  const login = () => {
-    fetch(`${API}/${aadhaar}`)
+  const [diagnosis, setDiagnosis] = useState("");
+  const [medication, setMedication] = useState("");
+  const [treatments, setTreatments] = useState([]);
+
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const API = "http://localhost:3001/api";
+
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+
+  // AUTO LOGIN
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const savedUser = JSON.parse(localStorage.getItem("user"));
+
+    if (token && savedUser) {
+      setAadhaar(savedUser.aadhaar);
+      setStep(4);
+    }
+  }, []);
+
+  // LOAD TREATMENTS
+  const loadTreatments = useCallback(() => {
+    if (!aadhaar) return;
+
+    fetch(`${API}/treatments/${aadhaar}`)
       .then(res => res.json())
-      .then(data => {
-        if (!data || Object.keys(data).length === 0) {
-          alert("Patient not found ❌");
-        } else {
-          setPatient(data);
-          setStep(2);
-        }
+      .then(data => setTreatments(data));
+  }, [aadhaar]);
+
+  useEffect(() => {
+    if (step === 4) loadTreatments();
+  }, [step, loadTreatments]);
+
+  // LOGIN
+  const loginUser = async () => {
+    try {
+      const res = await fetch(`${API}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aadhaar, password })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+
+        if (data.user) {
+        setAadhaar(data.user.aadhaar);
+      }
+        setStep(4);
+      } else {
+        alert(data.message);
+      }
+    } catch {
+      alert("Server error ❌");
+    }
+  };
+
+  // SAVE TREATMENT
+  const saveTreatment = async () => {
+    await fetch(`${API}/treatments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        aadhaar_id: aadhaar,
+        diagnosis,
+        medication
       })
-      .catch(() => alert("Server waking up... try again"));
+    });
+
+    setDiagnosis("");
+    setMedication("");
+    loadTreatments();
+    setActiveTab("patients");
   };
 
-  const cardStyle = {
-    background: "#ffffff",
-    padding: "30px",
-    borderRadius: "12px",
-    width: "350px",
-    margin: "40px auto",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.1)"
+  // DELETE TREATMENT
+  const deleteTreatment = async (id) => {
+    await fetch(`${API}/treatments/${id}`, {
+      method: "DELETE"
+    });
+
+    loadTreatments();
   };
 
-  const buttonStyle = {
-    padding: "10px 20px",
-    border: "none",
-    borderRadius: "8px",
-    background: "#4f46e5",
+  // FILTER
+  const filtered = treatments.filter(t =>
+    t.diagnosis.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    t.medication.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // ANALYTICS DATA
+  const count = {};
+  treatments.forEach(t => {
+    count[t.diagnosis] = (count[t.diagnosis] || 0) + 1;
+  });
+
+  const chartData = {
+    labels: Object.keys(count),
+    datasets: [
+      {
+        label: "Cases",
+        data: Object.values(count),
+        backgroundColor: "#3b82f6"
+      }
+    ]
+  };
+
+  // RISK
+  const risk = treatments.length > 5 ? "High Risk 🔴" : "Normal 🟢";
+
+  // STYLES
+  const layout = {
+    display: "flex",
+    maxWidth: "900px",
+    margin: "auto",
+    minHeight: "100vh"
+  };
+
+  const sidebar = {
+    width: "220px",
+    background: "#0f172a",
     color: "white",
-    cursor: "pointer",
-    marginTop: "10px"
+    padding: "20px"
   };
 
-  const inputStyle = {
-    padding: "12px",
+  const tab = (t) => ({
+    padding: "10px",
+    marginTop: "10px",
+    background: activeTab === t ? "#2563eb" : "transparent",
+    cursor: "pointer",
+    borderRadius: "6px"
+  });
+
+  const main = {
+    flex: 1,
+    padding: "20px",
+    background: "#f1f5f9"
+  };
+
+  const card = {
+    background: "white",
+    padding: "15px",
+    borderRadius: "10px",
+    marginBottom: "15px"
+  };
+
+  const input = {
+    padding: "10px",
+    width: "100%",
     margin: "10px 0",
-    width: "90%",
     borderRadius: "8px",
     border: "1px solid #ccc"
   };
 
+  const btn = {
+    padding: "10px",
+    background: "#2563eb",
+    color: "white",
+    border: "none",
+    width: "100%",
+    borderRadius: "8px",
+    cursor: "pointer"
+  };
+
+  // LOGIN UI
+  if (step === 1) {
+    return (
+      <div style={{ maxWidth: "400px", margin: "auto", textAlign: "center", marginTop: "100px" }}>
+        <h2>🏥 HealthMirror</h2>
+
+        <input
+          placeholder="Aadhaar"
+          value={aadhaar}
+          onChange={e => setAadhaar(e.target.value)}
+          style={input}
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          style={input}
+        />
+
+        <button style={btn} onClick={loginUser}>Login</button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{
-      fontFamily: "Arial",
-      background: "linear-gradient(to right, #eef2ff, #f8fafc)",
-      minHeight: "100vh",
-      padding: "20px"
-    }}>
+    <div style={layout}>
 
-      <h1 style={{ textAlign: "center" }}>HealthMirror</h1>
+      {/* SIDEBAR */}
+      <div style={sidebar}>
+        <h2>🏥 HealthMirror</h2>
 
-      {/* ✅ FIX: role used here → no warning */}
-      {role && (
-        <p style={{ textAlign: "center", color: "#555" }}>
-          Logged in as: <b>{role}</b>
-        </p>
-      )}
+        <div style={tab("dashboard")} onClick={() => setActiveTab("dashboard")}>Dashboard</div>
+        <div style={tab("patients")} onClick={() => setActiveTab("patients")}>Patients</div>
+        <div style={tab("analytics")} onClick={() => setActiveTab("analytics")}>Analytics</div>
+        <div style={tab("add")} onClick={() => setActiveTab("add")}>Add Treatment</div>
 
-      {/* STEP 1 LOGIN */}
-      {step === 1 && (
-        <div style={cardStyle}>
-          <h2>Login</h2>
+        <button
+          style={{ ...btn, marginTop: "20px" }}
+          onClick={() => {
+            localStorage.clear();
+            setStep(1);
+          }}
+        >
+          Logout
+        </button>
+      </div>
 
-          <input
-            placeholder="Enter Aadhaar ID"
-            value={aadhaar}
-            onChange={(e) => setAadhaar(e.target.value)}
-            style={inputStyle}
-          />
+      {/* MAIN */}
+      <div style={main}>
 
-          <button style={buttonStyle} onClick={login}>
-            Send OTP
-          </button>
-        </div>
-      )}
+        {/* DASHBOARD */}
+        {activeTab === "dashboard" && (
+          <>
+            <div style={card}>
+              <h2>Welcome {user?.aadhaar} 👋</h2>
+              <p><b>Risk Level:</b> {risk}</p>
+            </div>
 
-      {/* STEP 2 OTP */}
-      {step === 2 && (
-        <div style={cardStyle}>
-          <h2>OTP Verification</h2>
+            <div style={card}>
+              <h3>Total Treatments</h3>
+              <p>{treatments.length}</p>
+            </div>
 
-          <input
-            placeholder="Enter OTP"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            style={inputStyle}
-          />
+            <div style={card}>
+              <h3>Last Diagnosis</h3>
+              <p>{treatments[treatments.length - 1]?.diagnosis || "None"}</p>
+            </div>
+          </>
+        )}
 
-          <button style={buttonStyle} onClick={() => setStep(3)}>
-            Verify
-          </button>
-        </div>
-      )}
+        {/* PATIENTS */}
+        {activeTab === "patients" && (
+          <div style={card}>
+            <h3>Patient History 🔍</h3>
 
-      {/* STEP 3 ROLE */}
-      {step === 3 && (
-        <div style={cardStyle}>
-          <h2>Select Role</h2>
+            <input
+              placeholder="Search diagnosis or medication..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={input}
+            />
 
-          <button
-            style={buttonStyle}
-            onClick={() => {
-              setRole("Patient");
-              setStep(4);
-            }}
-          >
-            Continue as Patient
-          </button>
+            {filtered.length === 0 ? (
+              <p>No results found</p>
+            ) : (
+              filtered.map(t => (
+                <div key={t._id} style={card}>
+                  <b>{t.diagnosis}</b>
+                  <p>{t.medication}</p>
 
-          <br />
+                  <button onClick={() => deleteTreatment(t._id)}>
+                    Delete
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
 
-          <button
-            style={{ ...buttonStyle, background: "#059669" }}
-            onClick={() => {
-              setRole("Doctor");
-              setStep(6);
-            }}
-          >
-            Continue as Doctor
-          </button>
-        </div>
-      )}
+        {/* ANALYTICS */}
+        {activeTab === "analytics" && (
+          <div style={card}>
+            <h3>Analytics 📊</h3>
+            <Bar data={chartData} />
+          </div>
+        )}
 
-      {/* STEP 4 PATIENT DASHBOARD */}
-      {step === 4 && patient && (
-        <div style={cardStyle}>
-          <h2>Patient Dashboard</h2>
+        {/* ADD */}
+        {activeTab === "add" && (
+          <div style={card}>
+            <h3>Add Treatment</h3>
 
-          <h3>{patient.name}</h3>
-          <p>Aadhaar: {patient.aadhaar_id}</p>
+            <input
+              placeholder="Diagnosis"
+              value={diagnosis}
+              onChange={e => setDiagnosis(e.target.value)}
+              style={input}
+            />
 
-          <hr />
+            <input
+              placeholder="Medication"
+              value={medication}
+              onChange={e => setMedication(e.target.value)}
+              style={input}
+            />
 
-          <p>Total Visits: 47</p>
-          <p>Risk Score: Medium</p>
-          <p>Chronic: Diabetes</p>
+            <button style={btn} onClick={saveTreatment}>
+              Save Treatment
+            </button>
+          </div>
+        )}
 
-          <button style={buttonStyle} onClick={() => setStep(5)}>
-            View Reports
-          </button>
-        </div>
-      )}
-
-      {/* STEP 5 REPORTS */}
-      {step === 5 && (
-        <div style={cardStyle}>
-          <h2>Lab Reports</h2>
-
-          <p>Cholesterol: 225</p>
-          <p>LDL: 145</p>
-          <p>HDL: 45</p>
-
-          <button style={buttonStyle} onClick={() => setStep(4)}>
-            Back
-          </button>
-        </div>
-      )}
-
-      {/* STEP 6 DOCTOR DASHBOARD */}
-      {step === 6 && patient && (
-        <div style={cardStyle}>
-          <h2>Doctor Dashboard</h2>
-
-          <h3>{patient.name}</h3>
-          <p>Digital Twin Active</p>
-
-          <button style={buttonStyle} onClick={() => setStep(7)}>
-            Add Treatment
-          </button>
-
-          <br />
-
-          <button
-            style={{ ...buttonStyle, background: "#0ea5e9" }}
-            onClick={() => setStep(5)}
-          >
-            View Reports
-          </button>
-        </div>
-      )}
-
-      {/* STEP 7 ADD TREATMENT */}
-      {step === 7 && (
-        <div style={cardStyle}>
-          <h2>Add Treatment</h2>
-
-          <input placeholder="Diagnosis" style={inputStyle} />
-          <input placeholder="Medication" style={inputStyle} />
-
-          <button
-            style={{ ...buttonStyle, background: "#22c55e" }}
-            onClick={() => alert("Treatment Saved")}
-          >
-            Save Treatment
-          </button>
-        </div>
-      )}
-
+      </div>
     </div>
   );
 }
