@@ -15,7 +15,7 @@ export default function History() {
   const API = "http://10.68.4.118:3001/api";
 
   const user = getUser();
-  const aadhaar = user?.aadhaar; // 🔥 dynamic
+  const aadhaar = user?.aadhaar; // 
 
   const fetchData = async () => {
     try {

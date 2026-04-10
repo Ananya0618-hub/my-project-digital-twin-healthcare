@@ -7,7 +7,7 @@ export default function Index() {
 
   useEffect(() => {
     setTimeout(() => {
-      router.replace("/login"); // 🔥 force login screen
+      router.replace("/login");
     }, 100);
   }, []);
 
