@@ -1,3 +1,4 @@
+import { API } from "../../constants/api";
 import { View, Text, FlatList, StyleSheet, Alert } from "react-native";
 import { useEffect, useState } from "react";
 import { getUser } from "../../utils/userStore";
@@ -6,7 +7,7 @@ export default function Patients() {
   const [treatments, setTreatments] = useState<any[]>([]);
   const [aadhaar, setAadhaar] = useState<string | null>(null);
 
-  const API = "http://10.68.4.118:3001/api";
+  //const API = "http://10.68.7.207:3001/api";
 
   useEffect(() => {
     const loadTreatments = async () => {

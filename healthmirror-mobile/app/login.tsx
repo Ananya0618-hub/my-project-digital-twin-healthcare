@@ -1,3 +1,4 @@
+import { API } from "../constants/api";
 import {
   View,
   Text,
@@ -15,7 +16,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
 
   const router = useRouter();
-  const API = "http://10.68.4.118:3001/api";
+  //const API = "http://10.68.7.207:3001/api";
 
   const handleLogin = async () => {
     try {

@@ -1,3 +1,4 @@
+import { API } from "../../constants/api";
 import {
   View,
   Text,
@@ -12,7 +13,7 @@ import { getUser } from "../../utils/userStore";
 export default function History() {
   const [treatments, setTreatments] = useState([]);
 
-  const API = "http://10.68.4.118:3001/api";
+  //const API = "http://10.68.7.207:3001/api";
 
   const user = getUser();
   const aadhaar = user?.aadhaar; // 

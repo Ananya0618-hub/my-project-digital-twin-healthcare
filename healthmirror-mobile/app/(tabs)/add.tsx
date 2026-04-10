@@ -1,3 +1,4 @@
+import { API } from "../../constants/api";
 import {
   View,
   Text,
@@ -14,7 +15,7 @@ export default function Add() {
   const [medication, setMedication] = useState("");
   const [aadhaar, setAadhaar] = useState<string | null>(null);
 
-  const API = "http://10.68.4.118:3001/api";
+  //const API = "http://10.68.7.207:3001/api";
 
   useEffect(() => {
     const loadUser = async () => {
