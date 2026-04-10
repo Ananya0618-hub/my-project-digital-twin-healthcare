@@ -1,62 +1,80 @@
-import { View, Text, TextInput, StyleSheet, ScrollView } from "react-native";
-import { useState, useEffect } from "react";
+import { View, Text, FlatList, StyleSheet, Alert } from "react-native";
+import { useEffect, useState } from "react";
+import { getUser } from "../../utils/userStore";
 
 export default function Patients() {
-  const [treatments, setTreatments] = useState([]);
-  const [search, setSearch] = useState("");
+  const [treatments, setTreatments] = useState<any[]>([]);
+  const [aadhaar, setAadhaar] = useState<string | null>(null);
 
   const API = "http://10.68.4.118:3001/api";
 
   useEffect(() => {
-    fetch(`${API}/treatments/${aadhaar}`)
-      .then(res => res.json())
-      .then(data => setTreatments(data));
-  }, []);
+    const loadTreatments = async () => {
+      try {
+        const user = await getUser();
+        const userAadhaar = user?.aadhaar || null;
 
-  const filtered = treatments.filter(t =>
-    t.diagnosis.toLowerCase().includes(search.toLowerCase())
-  );
+        if (!userAadhaar) {
+          Alert.alert("Error", "User not found ❌");
+          return;
+        }
+
+        setAadhaar(userAadhaar);
+
+        const res = await fetch(`${API}/treatments/${userAadhaar}`);
+        const data = await res.json();
+        setTreatments(data);
+      } catch (err) {
+        console.log("PATIENTS ERROR:", err);
+        Alert.alert("Error", "Failed to load treatments ❌");
+      }
+    };
+
+    loadTreatments();
+  }, []);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Patient History 🔍</Text>
+      <Text style={styles.title}>📋 Patient Treatments</Text>
 
-      <TextInput
-        placeholder="Search diagnosis..."
-        value={search}
-        onChangeText={setSearch}
-        style={styles.input}
-      />
+      <Text style={styles.subtitle}>Aadhaar: {aadhaar || "Not loaded"}</Text>
 
-      <ScrollView>
-        {filtered.length === 0 ? (
-          <Text>No results found</Text>
-        ) : (
-          filtered.map((t, i) => (
-            <View key={i} style={styles.card}>
-              <Text style={{ fontWeight: "bold" }}>{t.diagnosis}</Text>
-              <Text>{t.medication}</Text>
-            </View>
-          ))
+      <FlatList
+        data={treatments}
+        keyExtractor={(item, index) => item._id || index.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <Text style={styles.label}>Diagnosis: {item.diagnosis}</Text>
+            <Text style={styles.label}>Medication: {item.medication}</Text>
+          </View>
         )}
-      </ScrollView>
+        ListEmptyComponent={<Text>No treatments found.</Text>}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  title: { fontSize: 20, marginBottom: 10 },
-  input: {
-    borderWidth: 1,
-    padding: 10,
-    marginBottom: 10,
-    borderRadius: 8
+  container: {
+    flex: 1,
+    padding: 20
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 10
+  },
+  subtitle: {
+    marginBottom: 15,
+    color: "#555"
   },
   card: {
-    padding: 10,
-    backgroundColor: "#eef2ff",
-    marginBottom: 10,
-    borderRadius: 8
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 10,
+    marginBottom: 10
+  },
+  label: {
+    fontSize: 16
   }
 });

@@ -11,7 +11,7 @@ const {
 router.post("/", addTreatment);
 
 // ✅ Get treatments
-router.get("/:aadhaar_id", getTreatments);
+router.get("/:aadhaar", getTreatments);
 
 // ✅ Delete treatment
 router.delete("/:id", deleteTreatment);

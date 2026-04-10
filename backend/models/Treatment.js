@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const treatmentSchema = new mongoose.Schema({
-  aadhaar_id: String,
+  aadhaar: String,
   diagnosis: String,
   medication: String,
   date: {

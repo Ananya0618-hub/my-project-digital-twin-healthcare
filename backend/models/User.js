@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
-  aadhaar_id: {
+  aadhaar: {
     type: String,
     required: true,
     unique: true

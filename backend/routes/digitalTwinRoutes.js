@@ -5,6 +5,6 @@ const {
 } = require("../controllers/digitalTwinController");
 
 // GET digital twin summary by Aadhaar ID
-router.get("/:aadhaar_id", getDigitalTwinByPatient);
+router.get("/:aadhaar", getDigitalTwinByPatient);
 
 module.exports = router;

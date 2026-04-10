@@ -8,16 +8,16 @@ const {
   updatePatient   // ✅ added
 } = require("../controllers/patientController");
 
-// ✅ GET all patients
+// ✅ GET all patient
 router.get("/", getAllPatients);
 
 // ✅ GET patient by Aadhaar ID
-router.get("/:aadhaar_id", getPatientById);
+router.get("/:aadhaar", getPatientById);
 
 // ✅ POST add new patient
 router.post("/", addPatient);
 
 // ✅ PUT update patient by Aadhaar ID
-router.put("/:aadhaar_id", updatePatient);
+router.put("/:aadhaar", updatePatient);
 
 module.exports = router;

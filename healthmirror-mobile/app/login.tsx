@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { setUser } from "../utils/userStore";
 
 export default function Login() {
   const [aadhaar, setAadhaar] = useState("");
@@ -30,20 +30,17 @@ export default function Login() {
       const data = await res.json();
       console.log("LOGIN RESPONSE:", data);
 
-      if (!data.aadhaar) {
-        Alert.alert("Error", "Login failed ❌");
+      if (!res.ok || !data.aadhaar) {
+        Alert.alert("Error", data.message || "Login failed ❌");
         return;
       }
 
-      // 🔥 SAVE TO STORAGE (PERMANENT)
-      await AsyncStorage.setItem("user", JSON.stringify(data));
+      await setUser(data);
 
       Alert.alert("Success", "Login successful ✅");
-
       router.replace("/(tabs)");
-
     } catch (err) {
-      console.log(err);
+      console.log("LOGIN ERROR:", err);
       Alert.alert("Error", "Network error ❌");
     }
   };
@@ -80,6 +77,7 @@ export default function Login() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", padding: 20 },
+  title: { fontSize: 24, textAlign: "center", marginBottom: 20 },
   input: {
     borderWidth: 1,
     padding: 12,
@@ -91,6 +89,13 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 10
   },
-  buttonText: { color: "white", textAlign: "center" },
-  link: { textAlign: "center", marginTop: 10 }
+  buttonText: {
+    color: "white",
+    textAlign: "center",
+    fontWeight: "bold"
+  },
+  link: {
+    textAlign: "center",
+    marginTop: 10
+  }
 });

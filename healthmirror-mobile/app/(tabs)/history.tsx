@@ -7,7 +7,7 @@ import {
   Alert
 } from "react-native";
 import { useEffect, useState } from "react";
-import { getUser } from "../utils/userStore";
+import { getUser } from "../../utils/userStore";
 
 export default function History() {
   const [treatments, setTreatments] = useState([]);

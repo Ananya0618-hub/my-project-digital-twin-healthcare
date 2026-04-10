@@ -6,21 +6,33 @@ import {
   StyleSheet,
   Alert
 } from "react-native";
-import { useState } from "react";
-import { getUser } from "../utils/userStore";
+import { useState, useEffect } from "react";
+import { getUser } from "../../utils/userStore";
 
 export default function Add() {
   const [diagnosis, setDiagnosis] = useState("");
   const [medication, setMedication] = useState("");
+  const [aadhaar, setAadhaar] = useState<string | null>(null);
 
   const API = "http://10.68.4.118:3001/api";
 
-  const user = getUser();
-  const aadhaar = user?.aadhaar; // 🔥 dynamic user
+  useEffect(() => {
+    const loadUser = async () => {
+      const user = await getUser();
+      setAadhaar(user?.aadhaar || null);
+    };
+
+    loadUser();
+  }, []);
 
   const save = async () => {
     if (!diagnosis || !medication) {
       Alert.alert("Error", "Please fill all fields ❌");
+      return;
+    }
+
+    if (!aadhaar) {
+      Alert.alert("Error", "User not loaded ❌");
       return;
     }
 
@@ -31,7 +43,7 @@ export default function Add() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          aadhaar_id: aadhaar,
+          aadhaar,
           diagnosis,
           medication
         })
@@ -40,11 +52,14 @@ export default function Add() {
       const data = await res.json();
       console.log("SAVE RESPONSE:", data);
 
-      Alert.alert("Success", "Treatment saved ✅");
+      if (!res.ok) {
+        Alert.alert("Error", data.message || "Failed to save treatment ❌");
+        return;
+      }
 
+      Alert.alert("Success", "Treatment saved ✅");
       setDiagnosis("");
       setMedication("");
-
     } catch (err) {
       console.log("ERROR:", err);
       Alert.alert("Error", "Network error ❌");
