@@ -1,13 +1,25 @@
 import { API } from "../../constants/api";
-import { View, Text, FlatList, StyleSheet, Alert } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { useEffect, useState } from "react";
 import { getUser } from "../../utils/userStore";
 
-export default function Patients() {
-  const [treatments, setTreatments] = useState<any[]>([]);
-  const [aadhaar, setAadhaar] = useState<string | null>(null);
+type Treatment = {
+  _id: string;
+  diagnosis: string;
+  medication: string;
+};
 
-  //const API = "http://10.68.7.207:3001/api";
+export default function Patients() {
+  const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [aadhaar, setAadhaar] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadTreatments = async () => {
@@ -24,33 +36,64 @@ export default function Patients() {
 
         const res = await fetch(`${API}/treatments/${userAadhaar}`);
         const data = await res.json();
-        setTreatments(data);
+
+        setTreatments(Array.isArray(data) ? data : []);
       } catch (err) {
         console.log("PATIENTS ERROR:", err);
         Alert.alert("Error", "Failed to load treatments ❌");
+      } finally {
+        setLoading(false);
       }
     };
 
     loadTreatments();
   }, []);
 
+  const renderItem = ({ item }: { item: Treatment }) => (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Treatment Record</Text>
+
+      <View style={styles.row}>
+        <Text style={styles.label}>Diagnosis</Text>
+        <Text style={styles.value}>{item.diagnosis}</Text>
+      </View>
+
+      <View style={styles.row}>
+        <Text style={styles.label}>Medication</Text>
+        <Text style={styles.value}>{item.medication}</Text>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>📋 Patient Treatments</Text>
 
-      <Text style={styles.subtitle}>Aadhaar: {aadhaar || "Not loaded"}</Text>
+      <Text style={styles.subtitle}>
+        {aadhaar ? `Aadhaar: ${aadhaar}` : "Loading user..."}
+      </Text>
 
-      <FlatList
-        data={treatments}
-        keyExtractor={(item, index) => item._id || index.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.label}>Diagnosis: {item.diagnosis}</Text>
-            <Text style={styles.label}>Medication: {item.medication}</Text>
-          </View>
-        )}
-        ListEmptyComponent={<Text>No treatments found.</Text>}
-      />
+      {loading ? (
+        <View style={styles.centerBox}>
+          <ActivityIndicator size="large" color="#2563eb" />
+          <Text style={styles.emptyText}>Loading treatments...</Text>
+        </View>
+      ) : treatments.length === 0 ? (
+        <View style={styles.centerBox}>
+          <Text style={styles.emptyTitle}>No treatments found</Text>
+          <Text style={styles.emptyText}>
+            Your treatment records will appear here.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={treatments}
+          keyExtractor={(item) => item._id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </View>
   );
 }
@@ -58,24 +101,65 @@ export default function Patients() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20
+    backgroundColor: "#f4f7fb",
+    padding: 16,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 10
+    color: "#111827",
+    marginBottom: 4,
   },
   subtitle: {
-    marginBottom: 15,
-    color: "#555"
+    fontSize: 14,
+    color: "#6b7280",
+    marginBottom: 16,
+  },
+  listContent: {
+    paddingBottom: 24,
   },
   card: {
-    padding: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
     borderWidth: 1,
-    borderRadius: 10,
-    marginBottom: 10
+    borderColor: "#e5e7eb",
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1f2937",
+    marginBottom: 10,
+  },
+  row: {
+    marginBottom: 10,
   },
   label: {
-    fontSize: 16
-  }
+    fontSize: 13,
+    color: "#6b7280",
+    marginBottom: 3,
+  },
+  value: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  centerBox: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 6,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
+  },
 });
+
