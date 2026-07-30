@@ -1,15 +1,11 @@
 import { API } from "../../constants/api";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, Alert, ActivityIndicator } from "react-native";
 import { useEffect, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { getUser } from "../../utils/userStore";
+import { palette, spacing, typography } from "../../constants/design";
+import AppCard from "../../components/ui/AppCard";
+import AppButton from "../../components/ui/AppButton";
 
 type Treatment = {
   _id: string;
@@ -35,8 +31,6 @@ export default function History() {
       setLoading(true);
       const res = await fetch(`${API}/treatments/${finalAadhaar}`);
       const data = await res.json();
-
-      console.log("HISTORY:", data);
       setTreatments(Array.isArray(data) ? data : []);
     } catch (err) {
       console.log("HISTORY ERROR:", err);
@@ -54,11 +48,7 @@ export default function History() {
         style: "destructive",
         onPress: async () => {
           try {
-            await fetch(`${API}/treatments/${id}`, {
-              method: "DELETE",
-            });
-
-            Alert.alert("Deleted ✅");
+            await fetch(`${API}/treatments/${id}`, { method: "DELETE" });
             fetchData();
           } catch (err) {
             console.log("DELETE ERROR:", err);
@@ -81,8 +71,9 @@ export default function History() {
   }, []);
 
   const renderItem = ({ item }: { item: Treatment }) => (
-    <View style={styles.card}>
+    <AppCard style={{ marginBottom: spacing.md }}>
       <View style={styles.cardHeader}>
+        <Ionicons name="medkit-outline" size={18} color={palette.primary} />
         <Text style={styles.cardTitle}>Treatment Record</Text>
       </View>
 
@@ -96,33 +87,24 @@ export default function History() {
         <Text style={styles.value}>{item.medication}</Text>
       </View>
 
-      <TouchableOpacity
-        style={styles.deleteBtn}
-        onPress={() => deleteItem(item._id)}
-      >
-        <Text style={styles.deleteText}>Delete</Text>
-      </TouchableOpacity>
-    </View>
+      <AppButton label="Delete" variant="danger" onPress={() => deleteItem(item._id)} style={{ marginTop: spacing.sm }} />
+    </AppCard>
   );
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>📜 Treatment History</Text>
-      <Text style={styles.subtitle}>
-        {aadhaar ? `Aadhaar: ${aadhaar}` : "Loading user..."}
-      </Text>
+      <Text style={styles.subtitle}>{aadhaar ? `Aadhaar: ${aadhaar}` : "Loading user..."}</Text>
 
       {loading ? (
         <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color="#2563eb" />
+          <ActivityIndicator size="large" color={palette.primary} />
           <Text style={styles.emptyText}>Loading history...</Text>
         </View>
       ) : treatments.length === 0 ? (
         <View style={styles.centerBox}>
           <Text style={styles.emptyTitle}>No treatment history found</Text>
-          <Text style={styles.emptyText}>
-            Your saved treatment records will appear here.
-          </Text>
+          <Text style={styles.emptyText}>Your saved treatment records will appear here.</Text>
         </View>
       ) : (
         <FlatList
@@ -140,63 +122,42 @@ export default function History() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f4f7fb",
-    padding: 16,
+    backgroundColor: palette.background,
+    padding: spacing.lg,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#111827",
+    ...typography.h1,
     marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginBottom: 16,
+    ...typography.body,
+    marginBottom: spacing.lg,
   },
   listContent: {
     paddingBottom: 24,
   },
-  card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
   cardHeader: {
-    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: spacing.md,
   },
   cardTitle: {
     fontSize: 17,
-    fontWeight: "bold",
-    color: "#1f2937",
+    fontWeight: "700",
+    color: palette.ink700,
   },
   infoRow: {
     marginBottom: 10,
   },
   label: {
-    fontSize: 13,
-    color: "#6b7280",
+    ...typography.label,
     marginBottom: 3,
   },
   value: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#111827",
-  },
-  deleteBtn: {
-    marginTop: 8,
-    backgroundColor: "#ef4444",
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  deleteText: {
-    color: "#ffffff",
-    fontWeight: "bold",
-    fontSize: 15,
+    color: palette.ink900,
   },
   centerBox: {
     flex: 1,
@@ -206,14 +167,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#111827",
+    fontWeight: "700",
+    color: palette.ink900,
     marginBottom: 8,
     textAlign: "center",
   },
   emptyText: {
     fontSize: 14,
-    color: "#6b7280",
+    color: palette.ink500,
     textAlign: "center",
     marginTop: 8,
   },

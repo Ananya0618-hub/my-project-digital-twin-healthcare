@@ -1,65 +1,84 @@
-let patients = [
-  { aadhaar_id: "9999", name: "Rahul" },
-  { aadhaar_id: "7777", name: "Ayush" }
-];
+const Patient = require("../models/Patient");
 
 // ✅ GET ALL PATIENTS
-const getAllPatients = (req, res) => {
-  res.json(patients);
+const getAllPatients = async (req, res) => {
+  try {
+    const patients = await Patient.find();
+    res.json(patients);
+  } catch (err) {
+    console.error("❌ GET ALL PATIENTS ERROR:", err);
+    res.status(500).json({ message: err.message || "Server error ❌" });
+  }
 };
 
-// ✅ GET PATIENT BY ID
-const getPatientById = (req, res) => {
-  const { aadhaar_id } = req.params;
+// ✅ GET PATIENT BY AADHAAR
+const getPatientById = async (req, res) => {
+  try {
+    const { aadhaar } = req.params;
 
-  const patient = patients.find(p => p.aadhaar_id === aadhaar_id);
+    const patient = await Patient.findOne({ aadhaar_id: aadhaar });
 
-  if (!patient) {
-    return res.status(404).json({ message: "Patient not found" });
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found ❌" });
+    }
+
+    res.json(patient);
+  } catch (err) {
+    console.error("❌ GET PATIENT ERROR:", err);
+    res.status(500).json({ message: err.message || "Server error ❌" });
   }
-
-  res.json(patient);
 };
 
-// ✅ ADD NEW PATIENT
-const addPatient = (req, res) => {
-  const { name, aadhaar_id } = req.body;
+// ✅ ADD NEW PATIENT (used outside the register flow, e.g. admin add)
+const addPatient = async (req, res) => {
+  try {
+    const { name, aadhaar_id, mobile, email, address, dob } = req.body;
 
-  // check if already exists
-  const exists = patients.find(p => p.aadhaar_id === aadhaar_id);
+    const exists = await Patient.findOne({ aadhaar_id });
+    if (exists) {
+      return res.status(400).json({ message: "Patient already exists ❌" });
+    }
 
-  if (exists) {
-    return res.status(400).json({ message: "Patient already exists" });
+    const newPatient = new Patient({ name, aadhaar_id, mobile, email, address, dob });
+    await newPatient.save();
+
+    res.status(201).json({
+      message: "Patient added successfully ✅",
+      patient: newPatient
+    });
+  } catch (err) {
+    console.error("❌ ADD PATIENT ERROR:", err);
+    res.status(500).json({ message: err.message || "Server error ❌" });
   }
-
-  const newPatient = { name, aadhaar_id };
-
-  patients.push(newPatient);
-
-  res.status(201).json({
-    message: "Patient added successfully",
-    patient: newPatient
-  });
 };
 
-// ✅ UPDATE PATIENT BY ID
-const updatePatient = (req, res) => {
-  const { aadhaar_id } = req.params;
-  const { name } = req.body;
+// ✅ UPDATE PATIENT BY AADHAAR
+const updatePatient = async (req, res) => {
+  try {
+    const { aadhaar } = req.params;
+    const { name, mobile, email, address, dob } = req.body;
 
-  const patient = patients.find(p => p.aadhaar_id === aadhaar_id);
+    const patient = await Patient.findOne({ aadhaar_id: aadhaar });
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found ❌" });
+    }
 
-  if (!patient) {
-    return res.status(404).json({ message: "Patient not found" });
+    if (name) patient.name = name;
+    if (mobile) patient.mobile = mobile;
+    if (email) patient.email = email;
+    if (address) patient.address = address;
+    if (dob) patient.dob = dob;
+
+    await patient.save();
+
+    res.json({
+      message: "Patient updated successfully ✅",
+      patient
+    });
+  } catch (err) {
+    console.error("❌ UPDATE PATIENT ERROR:", err);
+    res.status(500).json({ message: err.message || "Server error ❌" });
   }
-
-  // update fields
-  if (name) patient.name = name;
-
-  res.json({
-    message: "Patient updated successfully",
-    patient
-  });
 };
 
 module.exports = {

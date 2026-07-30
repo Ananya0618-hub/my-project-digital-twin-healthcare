@@ -9,18 +9,24 @@ exports.register = async (req, res) => {
     console.log("REGISTER HIT");
     console.log("BODY:", req.body);
 
-    const { aadhaar, password, name } = req.body;
+    const { aadhaar, password, name, mobile, email, address, dob } = req.body;
 
     // ✅ validation
-    if (!aadhaar || !password) {
+    if (!aadhaar || !password || !name) {
       return res.status(400).json({
-        message: "Aadhaar & Password required ❌"
+        message: "Name, Aadhaar & Password required ❌"
       });
     }
 
     if (aadhaar.length !== 12) {
       return res.status(400).json({
         message: "Aadhaar must be 12 digits ❌"
+      });
+    }
+
+    if (mobile && !/^[0-9]{10}$/.test(mobile)) {
+      return res.status(400).json({
+        message: "Mobile must be a 10 digit number ❌"
       });
     }
 
@@ -43,7 +49,7 @@ exports.register = async (req, res) => {
 
     await newUser.save();
 
-    // ✅ create patient profile
+    // ✅ create patient profile — Step 1 (Register) style customer intake
     const existingPatient = await Patient.findOne({
       aadhaar_id: aadhaar
     });
@@ -51,7 +57,11 @@ exports.register = async (req, res) => {
     if (!existingPatient) {
       const newPatient = new Patient({
         name: name || "New Patient",
-        aadhaar_id: aadhaar
+        aadhaar_id: aadhaar,
+        mobile: mobile || "",
+        email: email || "",
+        address: address || "",
+        dob: dob || ""
       });
 
       await newPatient.save();
