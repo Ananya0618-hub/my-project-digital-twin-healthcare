@@ -15,7 +15,7 @@ exports.addTreatment = async (req, res) => {
 exports.getTreatments = async (req, res) => {
   try {
     const data = await Treatment.find({
-      aadhaar_id: req.params.aadhaar_id
+      aadhaar: req.params.aadhaar
     });
     res.json(data);
   } catch (err) {
