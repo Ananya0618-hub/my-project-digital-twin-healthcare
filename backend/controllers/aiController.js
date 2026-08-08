@@ -2,7 +2,7 @@ const Patient = require("../models/Patient");
 const Treatment = require("../models/Treatment");
 const LabResult = require("../models/LabResult");
 
-const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-4-5-20251001";
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 // Strict, non-diagnostic system prompt — matches R4.3/R4.4 from the project report:
 // the assistant must summarize/organize only, never diagnose or recommend treatment.
@@ -33,9 +33,9 @@ exports.summarizePatient = async (req, res) => {
       return res.status(400).json({ message: "aadhaar is required ❌" });
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
-        message: "AI summarization isn't configured yet — ANTHROPIC_API_KEY is missing in .env ❌"
+        message: "AI summarization isn't configured yet — GEMINI_API_KEY is missing in .env ❌"
       });
     }
 
@@ -69,34 +69,44 @@ exports.summarizePatient = async (req, res) => {
       }))
     };
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 600,
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: `Here is this patient's stored record data as JSON:\n\n${JSON.stringify(dataForModel, null, 2)}\n\nPlease summarize it for the patient.`
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": process.env.GEMINI_API_KEY
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: SYSTEM_PROMPT }]
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `Here is this patient's stored record data as JSON:\n\n${JSON.stringify(dataForModel, null, 2)}\n\nPlease summarize it for the patient.`
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            maxOutputTokens: 600
           }
-        ]
-      })
-    });
+        })
+      }
+    );
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("❌ CLAUDE API ERROR:", response.status, errText);
+      console.error("❌ GEMINI API ERROR:", response.status, errText);
       return res.status(502).json({ message: "AI service error ❌" });
     }
 
     const data = await response.json();
-    const summary = data.content?.[0]?.text || "No summary could be generated.";
+    const summary =
+      data.candidates?.[0]?.content?.parts?.[0]?.text || "No summary could be generated.";
 
     res.json({ summary });
   } catch (err) {
