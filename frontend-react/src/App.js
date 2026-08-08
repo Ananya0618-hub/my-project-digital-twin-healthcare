@@ -6,32 +6,12 @@ import {
   LinearScale,
   BarElement
 } from "chart.js";
-import {
-  Building2,
-  UserPlus,
-  LayoutDashboard,
-  Users,
-  BarChart3,
-  PlusCircle,
-  LogOut,
-  Search,
-  Trash2,
-  Phone,
-  Mail,
-  MapPin,
-  Calendar,
-  FlaskConical,
-  ClipboardList,
-  Stethoscope,
-  FileText
-} from "lucide-react";
-import "./App.css";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement);
 
-// Relative path — works both in local dev (CRA proxy) and in production,
-// where Nginx serves this app and proxies /api to the backend on the
-// same domain. No hardcoded host, no CORS headaches.
+// Relative path — works both in local dev (CRA proxy, see package.json "proxy")
+// and in production, where Nginx serves this app and proxies /api to the
+// backend on the same domain. No hardcoded host, no CORS headaches.
 const API = "/api";
 
 function App() {
@@ -179,7 +159,11 @@ function App() {
     await fetch(`${API}/treatments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ aadhaar, diagnosis, medication })
+      body: JSON.stringify({
+        aadhaar,
+        diagnosis,
+        medication
+      })
     });
 
     setDiagnosis("");
@@ -190,7 +174,10 @@ function App() {
 
   // DELETE TREATMENT
   const deleteTreatment = async (id) => {
-    await fetch(`${API}/treatments/${id}`, { method: "DELETE" });
+    await fetch(`${API}/treatments/${id}`, {
+      method: "DELETE"
+    });
+
     loadTreatments();
   };
 
@@ -221,59 +208,127 @@ function App() {
       {
         label: "Cases",
         data: Object.values(count),
-        backgroundColor: "#2563eb",
-        borderRadius: 6,
-        maxBarThickness: 48
+        backgroundColor: "#2563eb"
       }
     ]
   };
 
-  const chartOptions = {
-    responsive: true,
-    plugins: { legend: { display: false } },
-    scales: {
-      y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#eef2f7" } },
-      x: { grid: { display: false } }
-    }
+  // RISK
+  const risk = treatments.length > 5 ? "High Risk 🔴" : "Normal 🟢";
+
+  // STYLES
+  const authWrap = {
+    maxWidth: "420px",
+    margin: "80px auto",
+    textAlign: "center",
+    background: "white",
+    padding: "36px",
+    borderRadius: "16px",
+    boxShadow: "0 4px 24px rgba(15,23,42,0.08)"
   };
 
-  const isHighRisk = treatments.length > 5;
+  const layout = {
+    display: "flex",
+    maxWidth: "1000px",
+    margin: "auto",
+    minHeight: "100vh"
+  };
 
-  // ================= LOGIN VIEW =================
+  const sidebar = {
+    width: "220px",
+    background: "#0f172a",
+    color: "white",
+    padding: "20px"
+  };
+
+  const tab = (t) => ({
+    padding: "10px",
+    marginTop: "10px",
+    background: activeTab === t ? "#2563eb" : "transparent",
+    cursor: "pointer",
+    borderRadius: "6px"
+  });
+
+  const main = {
+    flex: 1,
+    padding: "24px",
+    background: "#f1f5f9"
+  };
+
+  const card = {
+    background: "white",
+    padding: "18px",
+    borderRadius: "12px",
+    marginBottom: "16px",
+    boxShadow: "0 1px 3px rgba(15,23,42,0.06)"
+  };
+
+  const input = {
+    padding: "10px",
+    width: "100%",
+    margin: "8px 0",
+    borderRadius: "8px",
+    border: "1px solid #cbd5e1",
+    boxSizing: "border-box"
+  };
+
+  const btn = {
+    padding: "11px",
+    background: "#2563eb",
+    color: "white",
+    border: "none",
+    width: "100%",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontWeight: 600,
+    marginTop: "6px"
+  };
+
+  const linkBtn = {
+    background: "none",
+    border: "none",
+    color: "#2563eb",
+    cursor: "pointer",
+    marginTop: "14px",
+    fontSize: "14px"
+  };
+
+  const sectionLabel = {
+    textAlign: "left",
+    fontSize: "12px",
+    fontWeight: 700,
+    color: "#64748b",
+    textTransform: "uppercase",
+    marginTop: "18px",
+    marginBottom: "4px"
+  };
+
+  // LOGIN VIEW
   if (view === "login") {
     return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <div className="auth-brand">
-            <div className="auth-icon-circle">
-              <Building2 size={28} />
-            </div>
-            <h2 className="auth-title">HealthMirror</h2>
-            <p className="auth-subtitle">Sign in to your account</p>
-          </div>
+      <div style={authWrap}>
+        <h2>🏥 HealthMirror</h2>
+        <p style={{ color: "#64748b", marginTop: "-8px" }}>Sign in to your account</p>
 
-          <label className="field-label">Aadhaar Number</label>
-          <input
-            className="input"
-            placeholder="12-digit Aadhaar"
-            value={aadhaar}
-            onChange={e => setAadhaar(e.target.value)}
-          />
+        <input
+          placeholder="Aadhaar Number"
+          value={aadhaar}
+          onChange={e => setAadhaar(e.target.value)}
+          style={input}
+        />
 
-          <label className="field-label">Password</label>
-          <input
-            className="input"
-            type="password"
-            placeholder="Enter your password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-          />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          style={input}
+        />
 
-          <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={loginUser}>
-            Login
-          </button>
+        <button style={btn} onClick={loginUser}>Login</button>
 
-          <button className="link-btn" onClick={() => setView("register")}>
+        <div>
+          <button style={linkBtn} onClick={() => setView("register")}>
             Don't have an account? Register
           </button>
         </div>
@@ -281,47 +336,28 @@ function App() {
     );
   }
 
-  // ================= REGISTER VIEW =================
+  // REGISTER VIEW
   if (view === "register") {
     return (
-      <div className="auth-page">
-        <div className="auth-card wide">
-          <div className="auth-brand">
-            <div className="auth-icon-circle" style={{ background: "var(--teal-100)", color: "var(--teal-600)" }}>
-              <UserPlus size={26} />
-            </div>
-            <h2 className="auth-title">Create Account</h2>
-            <p className="auth-subtitle">Join HealthMirror in a couple of steps</p>
-          </div>
+      <div style={{ ...authWrap, maxWidth: "480px" }}>
+        <h2>📝 Create Account</h2>
+        <p style={{ color: "#64748b", marginTop: "-8px" }}>Join HealthMirror in a couple of steps</p>
 
-          <div className="form-section-label">Personal Details</div>
-          <label className="field-label">Full Name</label>
-          <input className="input" placeholder="Your name" value={regName} onChange={e => setRegName(e.target.value)} />
+        <div style={sectionLabel}>Personal Details</div>
+        <input placeholder="Full Name" value={regName} onChange={e => setRegName(e.target.value)} style={input} />
+        <input placeholder="Date of Birth (DD/MM/YYYY)" value={regDob} onChange={e => setRegDob(e.target.value)} style={input} />
+        <input placeholder="Mobile Number" value={regMobile} onChange={e => setRegMobile(e.target.value)} style={input} maxLength={10} />
+        <input placeholder="Email" value={regEmail} onChange={e => setRegEmail(e.target.value)} style={input} />
+        <input placeholder="Address" value={regAddress} onChange={e => setRegAddress(e.target.value)} style={input} />
 
-          <label className="field-label">Date of Birth</label>
-          <input className="input" placeholder="DD/MM/YYYY" value={regDob} onChange={e => setRegDob(e.target.value)} />
+        <div style={sectionLabel}>Account</div>
+        <input placeholder="12-digit Aadhaar" value={regAadhaar} onChange={e => setRegAadhaar(e.target.value)} style={input} maxLength={12} />
+        <input type="password" placeholder="Choose a password" value={regPassword} onChange={e => setRegPassword(e.target.value)} style={input} />
 
-          <label className="field-label">Mobile Number</label>
-          <input className="input" placeholder="10-digit mobile" value={regMobile} onChange={e => setRegMobile(e.target.value)} maxLength={10} />
+        <button style={btn} onClick={registerUser}>Register</button>
 
-          <label className="field-label">Email</label>
-          <input className="input" placeholder="you@example.com" value={regEmail} onChange={e => setRegEmail(e.target.value)} />
-
-          <label className="field-label">Address</label>
-          <input className="input" placeholder="Your address" value={regAddress} onChange={e => setRegAddress(e.target.value)} />
-
-          <div className="form-section-label">Account</div>
-          <label className="field-label">Aadhaar Number</label>
-          <input className="input" placeholder="12-digit Aadhaar" value={regAadhaar} onChange={e => setRegAadhaar(e.target.value)} maxLength={12} />
-
-          <label className="field-label">Password</label>
-          <input className="input" type="password" placeholder="Choose a password" value={regPassword} onChange={e => setRegPassword(e.target.value)} />
-
-          <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={registerUser}>
-            Register
-          </button>
-
-          <button className="link-btn" onClick={() => setView("login")}>
+        <div>
+          <button style={linkBtn} onClick={() => setView("login")}>
             Already have an account? Login
           </button>
         </div>
@@ -329,154 +365,76 @@ function App() {
     );
   }
 
-  // ================= MAIN APP =================
-  const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "patients", label: "Patients", icon: Users },
-    { id: "analytics", label: "Analytics", icon: BarChart3 },
-    { id: "add", label: "Add Treatment", icon: PlusCircle }
-  ];
-
+  // MAIN APP
   return (
-    <div className="app-shell">
+    <div style={layout}>
       {/* SIDEBAR */}
-      <div className="sidebar">
-        <div className="sidebar-brand">
-          <div className="sidebar-brand-icon">
-            <Building2 size={18} />
-          </div>
-          HealthMirror
-        </div>
+      <div style={sidebar}>
+        <h2>🏥 HealthMirror</h2>
 
-        {navItems.map(item => (
-          <div
-            key={item.id}
-            className={`nav-item ${activeTab === item.id ? "active" : ""}`}
-            onClick={() => setActiveTab(item.id)}
-          >
-            <item.icon size={17} />
-            {item.label}
-          </div>
-        ))}
+        <div style={tab("dashboard")} onClick={() => setActiveTab("dashboard")}>Dashboard</div>
+        <div style={tab("patients")} onClick={() => setActiveTab("patients")}>Patients</div>
+        <div style={tab("analytics")} onClick={() => setActiveTab("analytics")}>Analytics</div>
+        <div style={tab("add")} onClick={() => setActiveTab("add")}>Add Treatment</div>
 
-        <div className="sidebar-spacer" />
-
-        <button className="logout-btn" onClick={logout}>
-          <LogOut size={16} />
+        <button style={{ ...btn, marginTop: "20px" }} onClick={logout}>
           Logout
         </button>
       </div>
 
       {/* MAIN */}
-      <div className="main">
+      <div style={main}>
         {/* DASHBOARD */}
         {activeTab === "dashboard" && (
           <>
-            <div className="card hero-card">
-              <p className="hero-welcome">Welcome back</p>
-              <h2 className="hero-name">{profile?.name || aadhaar}</h2>
-              <span className="risk-badge">
-                <span
-                  className="risk-dot"
-                  style={{ background: isHighRisk ? "#fca5a5" : "#86efac" }}
-                />
-                {isHighRisk ? "High Risk" : "Normal"}
-              </span>
+            <div style={card}>
+              <h2>Welcome {profile?.name || aadhaar} 👋</h2>
+              <p><b>Risk Level:</b> {risk}</p>
             </div>
 
             {profile && (profile.mobile || profile.email || profile.address || profile.dob) && (
-              <div className="card">
-                <h3 className="card-heading">
-                  <ClipboardList size={17} color="var(--blue-600)" />
-                  Personal Details
-                </h3>
-
-                {profile.dob && (
-                  <div className="detail-row">
-                    <Calendar size={16} className="detail-icon" />
-                    <div>
-                      <p className="detail-label">Date of Birth</p>
-                      <p className="detail-value">{profile.dob}</p>
-                    </div>
-                  </div>
-                )}
-                {profile.mobile && (
-                  <div className="detail-row">
-                    <Phone size={16} className="detail-icon" />
-                    <div>
-                      <p className="detail-label">Mobile</p>
-                      <p className="detail-value">{profile.mobile}</p>
-                    </div>
-                  </div>
-                )}
-                {profile.email && (
-                  <div className="detail-row">
-                    <Mail size={16} className="detail-icon" />
-                    <div>
-                      <p className="detail-label">Email</p>
-                      <p className="detail-value">{profile.email}</p>
-                    </div>
-                  </div>
-                )}
-                {profile.address && (
-                  <div className="detail-row">
-                    <MapPin size={16} className="detail-icon" />
-                    <div>
-                      <p className="detail-label">Address</p>
-                      <p className="detail-value">{profile.address}</p>
-                    </div>
-                  </div>
-                )}
+              <div style={card}>
+                <h3>Personal Details</h3>
+                {profile.dob && <p><b>Date of Birth:</b> {profile.dob}</p>}
+                {profile.mobile && <p><b>Mobile:</b> {profile.mobile}</p>}
+                {profile.email && <p><b>Email:</b> {profile.email}</p>}
+                {profile.address && <p><b>Address:</b> {profile.address}</p>}
               </div>
             )}
 
-            <div className="stat-grid">
-              <div className="stat-card">
-                <p className="stat-label">Total Treatments</p>
-                <p className="stat-value">{treatments.length}</p>
-              </div>
-              <div className="stat-card">
-                <p className="stat-label">Last Diagnosis</p>
-                <p className="stat-value" style={{ fontSize: 16 }}>
-                  {treatments[treatments.length - 1]?.diagnosis || "None"}
-                </p>
-              </div>
+            <div style={card}>
+              <h3>Total Treatments</h3>
+              <p>{treatments.length}</p>
+            </div>
+
+            <div style={card}>
+              <h3>Last Diagnosis</h3>
+              <p>{treatments[treatments.length - 1]?.diagnosis || "None"}</p>
             </div>
           </>
         )}
 
         {/* PATIENTS */}
         {activeTab === "patients" && (
-          <div className="card">
-            <h3 className="card-heading">
-              <FileText size={17} color="var(--blue-600)" />
-              Patient History
-            </h3>
+          <div style={card}>
+            <h3>Patient History 🔍</h3>
 
-            <div className="search-wrap">
-              <Search size={16} />
-              <input
-                className="input"
-                placeholder="Search diagnosis or medication..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
-            </div>
+            <input
+              placeholder="Search diagnosis or medication..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={input}
+            />
 
             {filtered.length === 0 ? (
-              <div className="empty-state">No results found</div>
+              <p>No results found</p>
             ) : (
               filtered.map(t => (
-                <div className="treatment-item" key={t._id}>
-                  <div className="treatment-icon">
-                    <Stethoscope size={17} />
-                  </div>
-                  <div className="treatment-body">
-                    <p className="treatment-diagnosis">{t.diagnosis}</p>
-                    <p className="treatment-medication">{t.medication}</p>
-                  </div>
-                  <button className="btn-danger-outline btn" onClick={() => deleteTreatment(t._id)}>
-                    <Trash2 size={13} />
+                <div key={t._id} style={card}>
+                  <b>{t.diagnosis}</b>
+                  <p>{t.medication}</p>
+
+                  <button onClick={() => deleteTreatment(t._id)}>
                     Delete
                   </button>
                 </div>
@@ -487,45 +445,32 @@ function App() {
 
         {/* ANALYTICS */}
         {activeTab === "analytics" && (
-          <div className="card">
-            <h3 className="card-heading">
-              <BarChart3 size={17} color="var(--blue-600)" />
-              Analytics
-            </h3>
-            {treatments.length === 0 ? (
-              <div className="empty-state">Add a treatment to see analytics here</div>
-            ) : (
-              <Bar data={chartData} options={chartOptions} />
-            )}
+          <div style={card}>
+            <h3>Analytics 📊</h3>
+            <Bar data={chartData} />
           </div>
         )}
 
         {/* ADD */}
         {activeTab === "add" && (
-          <div className="card">
-            <h3 className="card-heading">
-              <FlaskConical size={17} color="var(--blue-600)" />
-              Add Treatment
-            </h3>
+          <div style={card}>
+            <h3>Add Treatment</h3>
 
-            <label className="field-label">Diagnosis</label>
             <input
-              className="input"
-              placeholder="e.g. Fever"
+              placeholder="Diagnosis"
               value={diagnosis}
               onChange={e => setDiagnosis(e.target.value)}
+              style={input}
             />
 
-            <label className="field-label">Medication</label>
             <input
-              className="input"
-              placeholder="e.g. Crocin"
+              placeholder="Medication"
               value={medication}
               onChange={e => setMedication(e.target.value)}
+              style={input}
             />
 
-            <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={saveTreatment}>
-              <PlusCircle size={16} />
+            <button style={btn} onClick={saveTreatment}>
               Save Treatment
             </button>
           </div>

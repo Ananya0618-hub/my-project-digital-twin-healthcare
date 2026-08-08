@@ -9,6 +9,8 @@ const patientRoutes = require("./routes/patientRoutes");
 const digitalTwinRoutes = require("./routes/digitalTwinRoutes");
 const treatmentRoutes = require("./routes/treatmentRoutes");
 const authRoutes = require("./routes/authRoutes");
+const labResultRoutes = require("./routes/labResultRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 const app = express();
 
@@ -27,6 +29,8 @@ app.use("/api/patients", patientRoutes);
 app.use("/api/digitaltwin", digitalTwinRoutes);
 app.use("/api/treatments", treatmentRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/labresults", labResultRoutes);
+app.use("/api/ai", aiRoutes);
 
 const PORT = process.env.PORT || 3001;
 
