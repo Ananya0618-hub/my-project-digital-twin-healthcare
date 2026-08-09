@@ -26,7 +26,8 @@ import {
   FileText,
   TestTube2,
   Sparkles,
-  Loader2
+  Loader2,
+  CloudDownload
 } from "lucide-react";
 import "./App.css";
 
@@ -75,6 +76,11 @@ function App() {
   const [aiSummary, setAiSummary] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
+
+  // FHIR sandbox import
+  const [fhirLoading, setFhirLoading] = useState(false);
+  const [fhirResult, setFhirResult] = useState(null);
+  const [fhirError, setFhirError] = useState(null);
 
   // AUTO LOGIN
   useEffect(() => {
@@ -282,6 +288,36 @@ function App() {
     }
   };
 
+  // FHIR SANDBOX IMPORT
+  const importFromFhir = async () => {
+    setFhirLoading(true);
+    setFhirError(null);
+    setFhirResult(null);
+
+    try {
+      const res = await fetch(`${API}/fhir/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aadhaar })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setFhirError(data.message || "Import failed ❌");
+        return;
+      }
+
+      setFhirResult(data);
+      loadTreatments();
+      loadLabResults();
+    } catch {
+      setFhirError("Network error ❌");
+    } finally {
+      setFhirLoading(false);
+    }
+  };
+
   const logout = () => {
     localStorage.clear();
     setAadhaar("");
@@ -457,7 +493,8 @@ function App() {
     { id: "labs", label: "Lab Reports", icon: TestTube2 },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "add", label: "Add Treatment", icon: PlusCircle },
-    { id: "ai", label: "AI Summary", icon: Sparkles }
+    { id: "ai", label: "AI Summary", icon: Sparkles },
+    { id: "fhir", label: "FHIR Import", icon: CloudDownload }
   ];
 
   return (
@@ -775,6 +812,40 @@ function App() {
                 {aiSummary.split("\n").filter(Boolean).map((line, i) => (
                   <p key={i}>{line}</p>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+        {/* FHIR IMPORT */}
+        {activeTab === "fhir" && (
+          <div className="card">
+            <h3 className="card-heading">
+              <CloudDownload size={17} color="var(--blue-600)" />
+              Import from FHIR Sandbox
+            </h3>
+            <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -6, marginBottom: 18 }}>
+              Pulls real conditions and lab observations from the public HAPI FHIR test
+              server (<code>hapi.fhir.org</code>) — synthetic patient data, not real
+              hospital records — and adds a few to your own treatment and lab history.
+              This is the same idea as the KYC project using Sandbox.co.in: a free,
+              no-signup external sandbox instead of hand-typed demo data.
+            </p>
+
+            <button className="btn btn-primary" onClick={importFromFhir} disabled={fhirLoading}>
+              {fhirLoading ? <Loader2 size={16} className="spin" /> : <CloudDownload size={16} />}
+              {fhirLoading ? "Importing..." : "Import Sample Data"}
+            </button>
+
+            {fhirError && <div className="ai-error">{fhirError}</div>}
+
+            {fhirResult && (
+              <div className="ai-summary-box">
+                <p>
+                  Imported {fhirResult.treatmentsImported} treatment record(s) and{" "}
+                  {fhirResult.labResultsImported} lab result(s) from synthetic FHIR
+                  patient <strong>{fhirResult.sourcePatientId}</strong>.
+                </p>
+                <p>Check the Patients and Lab Reports tabs to see what came in.</p>
               </div>
             )}
           </div>

@@ -11,6 +11,7 @@ const treatmentRoutes = require("./routes/treatmentRoutes");
 const authRoutes = require("./routes/authRoutes");
 const labResultRoutes = require("./routes/labResultRoutes");
 const aiRoutes = require("./routes/aiRoutes");
+const fhirImportRoutes = require("./routes/fhirImportRoutes");
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use("/api/treatments", treatmentRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/labresults", labResultRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/fhir", fhirImportRoutes);
 
 const PORT = process.env.PORT || 3001;
 
