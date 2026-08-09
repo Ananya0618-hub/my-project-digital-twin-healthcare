@@ -2,7 +2,7 @@ const Patient = require("../models/Patient");
 const Treatment = require("../models/Treatment");
 const LabResult = require("../models/LabResult");
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
 // Strict, non-diagnostic system prompt — matches R4.3/R4.4 from the project report:
 // the assistant must summarize/organize only, never diagnose or recommend treatment.
@@ -33,9 +33,9 @@ exports.summarizePatient = async (req, res) => {
       return res.status(400).json({ message: "aadhaar is required ❌" });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.GROQ_API_KEY) {
       return res.status(500).json({
-        message: "AI summarization isn't configured yet — GEMINI_API_KEY is missing in .env ❌"
+        message: "AI summarization isn't configured yet — GROQ_API_KEY is missing in .env ❌"
       });
     }
 
@@ -69,44 +69,33 @@ exports.summarizePatient = async (req, res) => {
       }))
     };
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: SYSTEM_PROMPT }]
-          },
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  text: `Here is this patient's stored record data as JSON:\n\n${JSON.stringify(dataForModel, null, 2)}\n\nPlease summarize it for the patient.`
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            maxOutputTokens: 600
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 600,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: `Here is this patient's stored record data as JSON:\n\n${JSON.stringify(dataForModel, null, 2)}\n\nPlease summarize it for the patient.`
           }
-        })
-      }
-    );
+        ]
+      })
+    });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("❌ GEMINI API ERROR:", response.status, errText);
+      console.error("❌ GROQ API ERROR:", response.status, errText);
       return res.status(502).json({ message: "AI service error ❌" });
     }
 
     const data = await response.json();
-    const summary =
-      data.candidates?.[0]?.content?.parts?.[0]?.text || "No summary could be generated.";
+    const summary = data.choices?.[0]?.message?.content || "No summary could be generated.";
 
     res.json({ summary });
   } catch (err) {
