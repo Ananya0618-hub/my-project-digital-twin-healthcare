@@ -827,8 +827,6 @@ function App() {
               Pulls real conditions and lab observations from the public HAPI FHIR test
               server (<code>hapi.fhir.org</code>) — synthetic patient data, not real
               hospital records — and adds a few to your own treatment and lab history.
-              This is the same idea as the KYC project using Sandbox.co.in: a free,
-              no-signup external sandbox instead of hand-typed demo data.
             </p>
 
             <button className="btn btn-primary" onClick={importFromFhir} disabled={fhirLoading}>
