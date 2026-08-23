@@ -2,7 +2,7 @@ const Patient = require("../models/Patient");
 const Treatment = require("../models/Treatment");
 const LabResult = require("../models/LabResult");
 
-const MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
 // Strict, non-diagnostic system prompt — matches R4.3/R4.4 from the project report:
 // the assistant must summarize/organize only, never diagnose or recommend treatment.
