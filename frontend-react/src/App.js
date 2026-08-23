@@ -39,7 +39,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement);
 const API = "/api";
 
 function App() {
-  // view: "login" | "register" | "app"
+  // view: "login" | "register" | "app" | "doctorLogin" | "doctorRegister" | "doctorApp"
   const [view, setView] = useState("login");
 
   // login fields
@@ -81,6 +81,44 @@ function App() {
   const [fhirLoading, setFhirLoading] = useState(false);
   const [fhirResult, setFhirResult] = useState(null);
   const [fhirError, setFhirError] = useState(null);
+
+  // ===== Doctor auth =====
+  const [docRegIdLogin, setDocRegIdLogin] = useState("");
+  const [docPasswordLogin, setDocPasswordLogin] = useState("");
+  const [doctor, setDoctor] = useState(null); // { doctorRegId, name, specialty }
+
+  const [docName, setDocName] = useState("");
+  const [docRegId, setDocRegId] = useState("");
+  const [docSpecialty, setDocSpecialty] = useState("");
+  const [docPhone, setDocPhone] = useState("");
+  const [docEmail, setDocEmail] = useState("");
+  const [docPassword, setDocPassword] = useState("");
+
+  // ===== Doctor dashboard: patient lookup =====
+  const [searchAadhaar, setSearchAadhaar] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState(null);
+  const [foundPatient, setFoundPatient] = useState(null);
+  const [foundTreatments, setFoundTreatments] = useState([]);
+  const [foundLabs, setFoundLabs] = useState([]);
+
+  const [docDiagnosis, setDocDiagnosis] = useState("");
+  const [docMedication, setDocMedication] = useState("");
+
+  const [docSummary, setDocSummary] = useState(null);
+  const [docSummaryLoading, setDocSummaryLoading] = useState(false);
+  const [docSummaryError, setDocSummaryError] = useState(null);
+
+  // AUTO LOGIN (doctor)
+  useEffect(() => {
+    const doctorToken = localStorage.getItem("doctorToken");
+    const savedDoctor = JSON.parse(localStorage.getItem("doctor") || "null");
+
+    if (doctorToken && savedDoctor) {
+      setDoctor(savedDoctor);
+      setView("doctorApp");
+    }
+  }, []);
 
   // AUTO LOGIN
   useEffect(() => {
@@ -318,6 +356,178 @@ function App() {
     }
   };
 
+  // DOCTOR REGISTER
+  const registerDoctor = async () => {
+    if (!docName.trim() || !docRegId.trim() || !docPassword) {
+      alert("Name, Doctor Registration ID and password are required ❌");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/doctorauth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: docName,
+          doctorRegId: docRegId,
+          specialty: docSpecialty,
+          phone: docPhone,
+          email: docEmail,
+          password: docPassword
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || "Registration failed ❌");
+        return;
+      }
+
+      alert("Doctor registered successfully ✅ Please log in.");
+      setDocRegIdLogin(docRegId);
+      setView("doctorLogin");
+    } catch {
+      alert("Server error ❌");
+    }
+  };
+
+  // DOCTOR LOGIN
+  const loginDoctor = async () => {
+    try {
+      const res = await fetch(`${API}/doctorauth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doctorRegId: docRegIdLogin, password: docPasswordLogin })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || "Login failed ❌");
+        return;
+      }
+
+      const docInfo = { doctorRegId: data.doctorRegId, name: data.name, specialty: data.specialty };
+      localStorage.setItem("doctorToken", data.token || "");
+      localStorage.setItem("doctor", JSON.stringify(docInfo));
+      setDoctor(docInfo);
+      setView("doctorApp");
+    } catch {
+      alert("Server error ❌");
+    }
+  };
+
+  const doctorLogout = () => {
+    localStorage.removeItem("doctorToken");
+    localStorage.removeItem("doctor");
+    setDoctor(null);
+    setFoundPatient(null);
+    setFoundTreatments([]);
+    setFoundLabs([]);
+    setSearchAadhaar("");
+    setDocSummary(null);
+    setView("login");
+  };
+
+  // DOCTOR: LOOK UP A PATIENT BY AADHAAR
+  const lookupPatient = async () => {
+    if (!searchAadhaar.trim()) {
+      alert("Enter a patient's Aadhaar number ❌");
+      return;
+    }
+
+    setLookupLoading(true);
+    setLookupError(null);
+    setFoundPatient(null);
+    setFoundTreatments([]);
+    setFoundLabs([]);
+    setDocSummary(null);
+
+    try {
+      const profileRes = await fetch(`${API}/patients/${searchAadhaar}`);
+      if (!profileRes.ok) {
+        setLookupError("No patient found with that Aadhaar ❌");
+        return;
+      }
+      const profile = await profileRes.json();
+      setFoundPatient(profile);
+
+      const [treatRes, labRes] = await Promise.all([
+        fetch(`${API}/treatments/${searchAadhaar}`),
+        fetch(`${API}/labresults/${searchAadhaar}`)
+      ]);
+      setFoundTreatments(treatRes.ok ? await treatRes.json() : []);
+      setFoundLabs(labRes.ok ? await labRes.json() : []);
+    } catch {
+      setLookupError("Network error ❌");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const refreshFoundPatientRecords = async () => {
+    if (!foundPatient) return;
+    const [treatRes, labRes] = await Promise.all([
+      fetch(`${API}/treatments/${foundPatient.aadhaar_id}`),
+      fetch(`${API}/labresults/${foundPatient.aadhaar_id}`)
+    ]);
+    setFoundTreatments(treatRes.ok ? await treatRes.json() : []);
+    setFoundLabs(labRes.ok ? await labRes.json() : []);
+  };
+
+  // DOCTOR: ADD TREATMENT FOR THE FOUND PATIENT
+  const doctorSaveTreatment = async () => {
+    if (!docDiagnosis.trim() || !docMedication.trim()) {
+      alert("Please fill both fields ❌");
+      return;
+    }
+
+    await fetch(`${API}/treatments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        aadhaar: foundPatient.aadhaar_id,
+        diagnosis: docDiagnosis,
+        medication: docMedication
+      })
+    });
+
+    setDocDiagnosis("");
+    setDocMedication("");
+    refreshFoundPatientRecords();
+  };
+
+  // DOCTOR: AI SUMMARY FOR THE FOUND PATIENT
+  const doctorSummarize = async () => {
+    if (!foundPatient) return;
+
+    setDocSummaryLoading(true);
+    setDocSummaryError(null);
+    setDocSummary(null);
+
+    try {
+      const res = await fetch(`${API}/ai/summarize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aadhaar: foundPatient.aadhaar_id })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDocSummaryError(data.message || "Couldn't generate a summary ❌");
+        return;
+      }
+
+      setDocSummary(data.summary);
+    } catch {
+      setDocSummaryError("Network error ❌");
+    } finally {
+      setDocSummaryLoading(false);
+    }
+  };
+
   const logout = () => {
     localStorage.clear();
     setAadhaar("");
@@ -433,6 +643,10 @@ function App() {
           <button className="link-btn" onClick={() => setView("register")}>
             Don't have an account? Register
           </button>
+
+          <button className="link-btn" style={{ marginTop: 4 }} onClick={() => setView("doctorLogin")}>
+            Login as Doctor
+          </button>
         </div>
       </div>
     );
@@ -481,6 +695,293 @@ function App() {
           <button className="link-btn" onClick={() => setView("login")}>
             Already have an account? Login
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ================= DOCTOR LOGIN VIEW =================
+  if (view === "doctorLogin") {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <div className="auth-brand">
+            <div className="auth-icon-circle" style={{ background: "var(--teal-100)", color: "var(--teal-600)" }}>
+              <Stethoscope size={26} />
+            </div>
+            <h2 className="auth-title">Doctor Login</h2>
+            <p className="auth-subtitle">Access your patient dashboard</p>
+          </div>
+
+          <label className="field-label">Doctor Registration ID</label>
+          <input
+            className="input"
+            placeholder="e.g. DOC12345"
+            value={docRegIdLogin}
+            onChange={e => setDocRegIdLogin(e.target.value)}
+          />
+
+          <label className="field-label">Password</label>
+          <input
+            className="input"
+            type="password"
+            placeholder="Enter your password"
+            value={docPasswordLogin}
+            onChange={e => setDocPasswordLogin(e.target.value)}
+          />
+
+          <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={loginDoctor}>
+            Login
+          </button>
+
+          <button className="link-btn" onClick={() => setView("doctorRegister")}>
+            New doctor? Register
+          </button>
+
+          <button className="link-btn" style={{ marginTop: 4 }} onClick={() => setView("login")}>
+            Continue as Patient
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ================= DOCTOR REGISTER VIEW =================
+  if (view === "doctorRegister") {
+    return (
+      <div className="auth-page">
+        <div className="auth-card wide">
+          <div className="auth-brand">
+            <div className="auth-icon-circle" style={{ background: "var(--teal-100)", color: "var(--teal-600)" }}>
+              <Stethoscope size={26} />
+            </div>
+            <h2 className="auth-title">Doctor Registration</h2>
+            <p className="auth-subtitle">Register with your Doctor Registration ID</p>
+          </div>
+
+          <label className="field-label">Full Name</label>
+          <input className="input" placeholder="Dr. Your Name" value={docName} onChange={e => setDocName(e.target.value)} />
+
+          <label className="field-label">Doctor Registration ID</label>
+          <input className="input" placeholder="e.g. DOC12345" value={docRegId} onChange={e => setDocRegId(e.target.value)} />
+
+          <label className="field-label">Specialty</label>
+          <input className="input" placeholder="e.g. Cardiologist" value={docSpecialty} onChange={e => setDocSpecialty(e.target.value)} />
+
+          <label className="field-label">Phone</label>
+          <input className="input" placeholder="Phone number" value={docPhone} onChange={e => setDocPhone(e.target.value)} />
+
+          <label className="field-label">Email</label>
+          <input className="input" placeholder="you@hospital.com" value={docEmail} onChange={e => setDocEmail(e.target.value)} />
+
+          <label className="field-label">Password</label>
+          <input className="input" type="password" placeholder="Choose a password" value={docPassword} onChange={e => setDocPassword(e.target.value)} />
+
+          <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={registerDoctor}>
+            Register
+          </button>
+
+          <button className="link-btn" onClick={() => setView("doctorLogin")}>
+            Already registered? Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ================= DOCTOR DASHBOARD =================
+  if (view === "doctorApp") {
+    return (
+      <div className="app-shell">
+        <div className="sidebar">
+          <div className="sidebar-brand">
+            <div className="sidebar-brand-icon">
+              <Stethoscope size={18} />
+            </div>
+            HealthMirror
+          </div>
+
+          <div className="nav-item active">
+            <Search size={17} />
+            Search Patient
+          </div>
+
+          <div className="sidebar-spacer" />
+
+          <div style={{ color: "#94a3b8", fontSize: 12.5, padding: "0 14px 10px" }}>
+            {doctor?.name} {doctor?.specialty ? `· ${doctor.specialty}` : ""}
+          </div>
+
+          <button className="logout-btn" onClick={doctorLogout}>
+            <LogOut size={16} />
+            Logout
+          </button>
+        </div>
+
+        <div className="main">
+          <div className="card">
+            <h3 className="card-heading">
+              <Search size={17} color="var(--blue-600)" />
+              Search Patient by Aadhaar
+            </h3>
+
+            <div className="search-wrap">
+              <Search size={16} />
+              <input
+                className="input"
+                placeholder="Enter 12-digit Aadhaar"
+                value={searchAadhaar}
+                onChange={e => setSearchAadhaar(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && lookupPatient()}
+              />
+            </div>
+
+            <button className="btn btn-primary" onClick={lookupPatient} disabled={lookupLoading}>
+              {lookupLoading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
+              {lookupLoading ? "Searching..." : "Search"}
+            </button>
+
+            {lookupError && <div className="ai-error">{lookupError}</div>}
+          </div>
+
+          {foundPatient && (
+            <>
+              <div className="card">
+                <div className="hero-top">
+                  <div className="avatar-circle" style={{ background: "var(--teal-600)" }}>
+                    {(foundPatient.name || "?").charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="detail-label" style={{ margin: 0 }}>Patient</p>
+                    <h2 style={{ margin: "2px 0 0", fontSize: 20 }}>{foundPatient.name}</h2>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 18 }}>
+                  {foundPatient.dob && (
+                    <div className="detail-row">
+                      <Calendar size={16} className="detail-icon" />
+                      <div>
+                        <p className="detail-label">Date of Birth</p>
+                        <p className="detail-value">{foundPatient.dob}</p>
+                      </div>
+                    </div>
+                  )}
+                  {foundPatient.mobile && (
+                    <div className="detail-row">
+                      <Phone size={16} className="detail-icon" />
+                      <div>
+                        <p className="detail-label">Mobile</p>
+                        <p className="detail-value">{foundPatient.mobile}</p>
+                      </div>
+                    </div>
+                  )}
+                  {foundPatient.email && (
+                    <div className="detail-row">
+                      <Mail size={16} className="detail-icon" />
+                      <div>
+                        <p className="detail-label">Email</p>
+                        <p className="detail-value">{foundPatient.email}</p>
+                      </div>
+                    </div>
+                  )}
+                  {foundPatient.address && (
+                    <div className="detail-row">
+                      <MapPin size={16} className="detail-icon" />
+                      <div>
+                        <p className="detail-label">Address</p>
+                        <p className="detail-value">{foundPatient.address}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="card">
+                <h3 className="card-heading">
+                  <FileText size={17} color="var(--blue-600)" />
+                  Treatment History
+                </h3>
+                {foundTreatments.length === 0 ? (
+                  <div className="empty-state">No treatments recorded yet</div>
+                ) : (
+                  foundTreatments.map(t => (
+                    <div className="treatment-item" key={t._id}>
+                      <div className="treatment-icon">
+                        <Stethoscope size={17} />
+                      </div>
+                      <div className="treatment-body">
+                        <p className="treatment-diagnosis">{t.diagnosis}</p>
+                        <p className="treatment-medication">{t.medication}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="card">
+                <h3 className="card-heading">
+                  <TestTube2 size={17} color="var(--blue-600)" />
+                  Lab Results
+                </h3>
+                {foundLabs.length === 0 ? (
+                  <div className="empty-state">No lab results recorded yet</div>
+                ) : (
+                  foundLabs.map(l => (
+                    <div className="lab-item" key={l._id}>
+                      <div className="lab-item-main">
+                        <p className="treatment-diagnosis">{l.testName}</p>
+                        <p className="treatment-medication">
+                          {l.resultValue} {l.unit} {l.referenceRange ? `· Ref: ${l.referenceRange}` : ""}
+                        </p>
+                      </div>
+                      <span className={`status-badge status-${l.status}`}>{l.status}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="card">
+                <h3 className="card-heading">
+                  <FlaskConical size={17} color="var(--blue-600)" />
+                  Add Treatment for This Patient
+                </h3>
+
+                <label className="field-label">Diagnosis</label>
+                <input className="input" placeholder="e.g. Fever" value={docDiagnosis} onChange={e => setDocDiagnosis(e.target.value)} />
+
+                <label className="field-label">Medication</label>
+                <input className="input" placeholder="e.g. Crocin" value={docMedication} onChange={e => setDocMedication(e.target.value)} />
+
+                <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={doctorSaveTreatment}>
+                  <PlusCircle size={16} />
+                  Save Treatment
+                </button>
+              </div>
+
+              <div className="card">
+                <h3 className="card-heading">
+                  <Sparkles size={17} color="var(--blue-600)" />
+                  AI Summary for This Patient
+                </h3>
+
+                <button className="btn btn-primary" onClick={doctorSummarize} disabled={docSummaryLoading}>
+                  {docSummaryLoading ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
+                  {docSummaryLoading ? "Summarizing..." : "Summarize Patient History"}
+                </button>
+
+                {docSummaryError && <div className="ai-error">{docSummaryError}</div>}
+
+                {docSummary && (
+                  <div className="ai-summary-box">
+                    {docSummary.split("\n").filter(Boolean).map((line, i) => (
+                      <p key={i}>{line}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
