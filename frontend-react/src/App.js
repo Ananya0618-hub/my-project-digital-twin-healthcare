@@ -55,6 +55,20 @@ function App() {
   const [regAadhaar, setRegAadhaar] = useState("");
   const [regPassword, setRegPassword] = useState("");
 
+  // ===== Registration wizard: 1 = details, 2 = Aadhaar document, 3 = mobile OTP =====
+  const [regStep, setRegStep] = useState(1);
+
+  const [aadhaarFile, setAadhaarFile] = useState(null);
+  const [aadhaarVerifyLoading, setAadhaarVerifyLoading] = useState(false);
+  const [aadhaarVerifyResult, setAadhaarVerifyResult] = useState(null);
+  const [aadhaarVerifyError, setAadhaarVerifyError] = useState(null);
+
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpDemoValue, setOtpDemoValue] = useState(null);
+  const [otpInput, setOtpInput] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState(null);
+
   const [activeTab, setActiveTab] = useState("dashboard");
 
   const [diagnosis, setDiagnosis] = useState("");
@@ -192,6 +206,111 @@ function App() {
   };
 
   // REGISTER
+  // STEP 2: VERIFY AADHAAR DOCUMENT (OCR + checksum, matched against typed number)
+  const verifyAadhaarDocument = async () => {
+    if (regAadhaar.length !== 12) {
+      alert("Enter the 12-digit Aadhaar number in Step 1 first ❌");
+      return;
+    }
+    if (!aadhaarFile) {
+      alert("Please choose an Aadhaar card image to upload ❌");
+      return;
+    }
+
+    setAadhaarVerifyLoading(true);
+    setAadhaarVerifyError(null);
+    setAadhaarVerifyResult(null);
+
+    try {
+      const form = new FormData();
+      form.append("aadhaarImage", aadhaarFile);
+      form.append("aadhaarNumber", regAadhaar);
+
+      const res = await fetch(`${API}/verify/extract`, {
+        method: "POST",
+        body: form
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAadhaarVerifyError(data.message || "Verification failed ❌");
+        return;
+      }
+
+      setAadhaarVerifyResult(data);
+    } catch {
+      setAadhaarVerifyError("Network error ❌");
+    } finally {
+      setAadhaarVerifyLoading(false);
+    }
+  };
+
+  // STEP 3: SEND SIMULATED OTP
+  const sendOtpForMobile = async () => {
+    if (regMobile.length !== 10) {
+      alert("Enter a 10-digit mobile number in Step 1 first ❌");
+      return;
+    }
+
+    setOtpLoading(true);
+    setOtpError(null);
+
+    try {
+      const res = await fetch(`${API}/verify/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile: regMobile })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setOtpError(data.message || "Couldn't generate OTP ❌");
+        return;
+      }
+
+      setOtpSent(true);
+      setOtpDemoValue(data.otp);
+    } catch {
+      setOtpError("Network error ❌");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // STEP 3: VERIFY OTP, THEN ACTUALLY CREATE THE ACCOUNT
+  const verifyOtpAndRegister = async () => {
+    if (!otpInput.trim()) {
+      alert("Enter the OTP ❌");
+      return;
+    }
+
+    setOtpLoading(true);
+    setOtpError(null);
+
+    try {
+      const res = await fetch(`${API}/verify/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile: regMobile, otp: otpInput })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.verified) {
+        setOtpError(data.message || "OTP verification failed ❌");
+        return;
+      }
+
+      await registerUser();
+    } catch {
+      setOtpError("Network error ❌");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   const registerUser = async () => {
     if (!regName.trim()) {
       alert("Please enter your name ❌");
@@ -652,7 +771,7 @@ function App() {
     );
   }
 
-  // ================= REGISTER VIEW =================
+  // ================= REGISTER VIEW (3-step wizard) =================
   if (view === "register") {
     return (
       <div className="auth-page">
@@ -662,39 +781,170 @@ function App() {
               <UserPlus size={26} />
             </div>
             <h2 className="auth-title">Create Account</h2>
-            <p className="auth-subtitle">Join HealthMirror in a couple of steps</p>
+            <p className="auth-subtitle">Step {regStep} of 3</p>
           </div>
 
-          <div className="form-section-label">Personal Details</div>
-          <label className="field-label">Full Name</label>
-          <input className="input" placeholder="Your name" value={regName} onChange={e => setRegName(e.target.value)} />
+          {/* STEP 1: PERSONAL + ACCOUNT DETAILS */}
+          {regStep === 1 && (
+            <>
+              <div className="form-section-label">Personal Details</div>
+              <label className="field-label">Full Name</label>
+              <input className="input" placeholder="Your name" value={regName} onChange={e => setRegName(e.target.value)} />
 
-          <label className="field-label">Date of Birth</label>
-          <input className="input" placeholder="DD/MM/YYYY" value={regDob} onChange={e => setRegDob(e.target.value)} />
+              <label className="field-label">Date of Birth</label>
+              <input className="input" placeholder="DD/MM/YYYY" value={regDob} onChange={e => setRegDob(e.target.value)} />
 
-          <label className="field-label">Mobile Number</label>
-          <input className="input" placeholder="10-digit mobile" value={regMobile} onChange={e => setRegMobile(e.target.value)} maxLength={10} />
+              <label className="field-label">Mobile Number</label>
+              <input className="input" placeholder="10-digit mobile" value={regMobile} onChange={e => setRegMobile(e.target.value)} maxLength={10} />
 
-          <label className="field-label">Email</label>
-          <input className="input" placeholder="you@example.com" value={regEmail} onChange={e => setRegEmail(e.target.value)} />
+              <label className="field-label">Email</label>
+              <input className="input" placeholder="you@example.com" value={regEmail} onChange={e => setRegEmail(e.target.value)} />
 
-          <label className="field-label">Address</label>
-          <input className="input" placeholder="Your address" value={regAddress} onChange={e => setRegAddress(e.target.value)} />
+              <label className="field-label">Address</label>
+              <input className="input" placeholder="Your address" value={regAddress} onChange={e => setRegAddress(e.target.value)} />
 
-          <div className="form-section-label">Account</div>
-          <label className="field-label">Aadhaar Number</label>
-          <input className="input" placeholder="12-digit Aadhaar" value={regAadhaar} onChange={e => setRegAadhaar(e.target.value)} maxLength={12} />
+              <div className="form-section-label">Account</div>
+              <label className="field-label">Aadhaar Number</label>
+              <input className="input" placeholder="12-digit Aadhaar" value={regAadhaar} onChange={e => setRegAadhaar(e.target.value)} maxLength={12} />
 
-          <label className="field-label">Password</label>
-          <input className="input" type="password" placeholder="Choose a password" value={regPassword} onChange={e => setRegPassword(e.target.value)} />
+              <label className="field-label">Password</label>
+              <input className="input" type="password" placeholder="Choose a password" value={regPassword} onChange={e => setRegPassword(e.target.value)} />
 
-          <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={registerUser}>
-            Register
-          </button>
+              <button
+                className="btn btn-primary"
+                style={{ marginTop: 22 }}
+                onClick={() => {
+                  if (!regName.trim()) return alert("Please enter your name ❌");
+                  if (regAadhaar.length !== 12) return alert("Aadhaar must be 12 digits ❌");
+                  if (regMobile.length !== 10) return alert("Mobile number must be 10 digits ❌");
+                  if (!regPassword) return alert("Please choose a password ❌");
+                  setRegStep(2);
+                }}
+              >
+                Continue
+              </button>
 
-          <button className="link-btn" onClick={() => setView("login")}>
-            Already have an account? Login
-          </button>
+              <button className="link-btn" onClick={() => setView("login")}>
+                Already have an account? Login
+              </button>
+            </>
+          )}
+
+          {/* STEP 2: AADHAAR DOCUMENT VERIFICATION */}
+          {regStep === 2 && (
+            <>
+              <div className="form-section-label">Verify Aadhaar Document</div>
+              <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -4, marginBottom: 16 }}>
+                Upload a photo of your Aadhaar card. We'll read the printed number (OCR) and check
+                it against the number you entered, plus validate it against the checksum pattern
+                UIDAI uses for real Aadhaar numbers.
+              </p>
+
+              <label className="field-label">Aadhaar Card Photo</label>
+              <input
+                className="input"
+                type="file"
+                accept="image/*"
+                onChange={e => {
+                  setAadhaarFile(e.target.files?.[0] || null);
+                  setAadhaarVerifyResult(null);
+                  setAadhaarVerifyError(null);
+                }}
+              />
+
+              <button
+                className="btn btn-primary"
+                style={{ marginTop: 18 }}
+                onClick={verifyAadhaarDocument}
+                disabled={aadhaarVerifyLoading}
+              >
+                {aadhaarVerifyLoading ? <Loader2 size={16} className="spin" /> : null}
+                {aadhaarVerifyLoading ? "Reading document..." : "Verify Document"}
+              </button>
+
+              {aadhaarVerifyError && <div className="ai-error">{aadhaarVerifyError}</div>}
+
+              {aadhaarVerifyResult && (
+                <div className="ai-summary-box">
+                  <p>{aadhaarVerifyResult.message}</p>
+                  <p>
+                    Checksum: <strong>{aadhaarVerifyResult.checksumValid ? "Valid pattern" : "Does not match UIDAI's pattern"}</strong>
+                  </p>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                <button className="btn" style={{ background: "var(--border)", color: "var(--ink-700)" }} onClick={() => setRegStep(1)}>
+                  Back
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={!aadhaarVerifyResult?.matched}
+                  onClick={() => setRegStep(3)}
+                >
+                  Continue
+                </button>
+              </div>
+
+              <button className="link-btn" onClick={() => setRegStep(3)}>
+                Skip for now (demo mode)
+              </button>
+            </>
+          )}
+
+          {/* STEP 3: MOBILE OTP */}
+          {regStep === 3 && (
+            <>
+              <div className="form-section-label">Verify Mobile Number</div>
+              <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -4, marginBottom: 16 }}>
+                <strong>Demo mode:</strong> this OTP is simulated and shown directly below instead
+                of being sent by real SMS (which needs a paid provider and DLT registration in India).
+              </p>
+
+              <button className="btn btn-primary" onClick={sendOtpForMobile} disabled={otpLoading}>
+                {otpLoading && !otpSent ? <Loader2 size={16} className="spin" /> : null}
+                {otpSent ? "Resend OTP" : "Send OTP"}
+              </button>
+
+              {otpSent && otpDemoValue && (
+                <div className="ai-summary-box">
+                  <p>
+                    Your demo OTP is <strong style={{ fontSize: 18 }}>{otpDemoValue}</strong>
+                  </p>
+                  <p>Valid for 5 minutes.</p>
+                </div>
+              )}
+
+              {otpSent && (
+                <>
+                  <label className="field-label" style={{ marginTop: 18 }}>Enter OTP</label>
+                  <input
+                    className="input"
+                    placeholder="6-digit OTP"
+                    value={otpInput}
+                    onChange={e => setOtpInput(e.target.value)}
+                    maxLength={6}
+                  />
+                </>
+              )}
+
+              {otpError && <div className="ai-error">{otpError}</div>}
+
+              <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                <button className="btn" style={{ background: "var(--border)", color: "var(--ink-700)" }} onClick={() => setRegStep(2)}>
+                  Back
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={otpSent ? verifyOtpAndRegister : registerUser}
+                  disabled={otpLoading}
+                >
+                  {otpLoading ? <Loader2 size={16} className="spin" /> : null}
+                  {otpSent ? "Verify & Register" : "Skip & Register"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
