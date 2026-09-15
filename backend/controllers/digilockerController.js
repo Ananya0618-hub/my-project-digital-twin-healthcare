@@ -1,6 +1,11 @@
 const Patient = require("../models/Patient");
 
-const SANDBOX_BASE = "https://api.sandbox.co.in";
+// Sandbox's test environment — pre-approved for all standard products
+// (including DigiLocker) without needing production/business approval,
+// which is exactly what a personal test/API key is meant for. Doesn't
+// consume wallet balance either. Switch to the production base URL only
+// once the account has gone through Sandbox's business approval process.
+const SANDBOX_BASE = process.env.SANDBOX_BASE_URL || "https://test-api.sandbox.co.in";
 
 // The public HTTPS URL this backend is reachable at — used to build the
 // callback DigiLocker/Sandbox redirects the user's browser back to once
