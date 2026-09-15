@@ -27,7 +27,8 @@ import {
   TestTube2,
   Sparkles,
   Loader2,
-  CloudDownload
+  CloudDownload,
+  ShieldCheck
 } from "lucide-react";
 import "./App.css";
 
@@ -144,6 +145,48 @@ function App() {
       setView("app");
     }
   }, []);
+
+  // ===== DigiLocker verification =====
+  const [digilockerLoading, setDigilockerLoading] = useState(false);
+  const [digilockerBanner, setDigilockerBanner] = useState(null); // "success" | "failed" | "error" | null
+
+  // Handle the redirect back from DigiLocker (?digilocker=success|failed|error in the URL)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("digilocker");
+
+    if (result) {
+      setDigilockerBanner(result);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  const startDigilockerVerification = async () => {
+    setDigilockerLoading(true);
+
+    try {
+      const res = await fetch(`${API}/digilocker/initiate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aadhaar })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || "Couldn't start DigiLocker verification ❌");
+        setDigilockerLoading(false);
+        return;
+      }
+
+      // Full-page redirect — DigiLocker's OAuth flow requires top-level
+      // navigation, this can't happen via fetch/XHR.
+      window.location.href = data.authorizationUrl;
+    } catch {
+      alert("Network error ❌");
+      setDigilockerLoading(false);
+    }
+  };
 
   // LOAD TREATMENTS
   const loadTreatments = useCallback(() => {
@@ -1291,6 +1334,36 @@ function App() {
                   <h2 className="hero-name">{profile?.name || aadhaar}</h2>
                 </div>
               </div>
+            </div>
+
+            {digilockerBanner && (
+              <div className={digilockerBanner === "success" ? "ai-summary-box" : "ai-error"}>
+                {digilockerBanner === "success" && "Aadhaar verified successfully via DigiLocker ✅"}
+                {digilockerBanner === "failed" && "DigiLocker verification wasn't completed — you can try again below ❌"}
+                {digilockerBanner === "error" && "Something went wrong during DigiLocker verification — try again ❌"}
+              </div>
+            )}
+
+            <div className="card">
+              <h3 className="card-heading">
+                <ShieldCheck size={17} color="var(--blue-600)" />
+                Aadhaar Verification
+              </h3>
+
+              {profile?.digilockerVerified ? (
+                <span className="status-badge status-normal">Verified via DigiLocker</span>
+              ) : (
+                <>
+                  <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginBottom: 14 }}>
+                    Confirm your Aadhaar through DigiLocker — you'll log in with your own
+                    Aadhaar-linked mobile OTP directly on DigiLocker's site, not ours.
+                  </p>
+                  <button className="btn btn-primary" onClick={startDigilockerVerification} disabled={digilockerLoading}>
+                    {digilockerLoading ? <Loader2 size={16} className="spin" /> : <ShieldCheck size={16} />}
+                    {digilockerLoading ? "Redirecting..." : "Verify with DigiLocker"}
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="stat-grid">

@@ -9,7 +9,9 @@ const patientSchema = new mongoose.Schema(
     mobile: { type: String },
     email: { type: String },
     address: { type: String },
-    dob: { type: String } // stored as DD/MM/YYYY string to keep the form simple
+    dob: { type: String }, // stored as DD/MM/YYYY string to keep the form simple
+    digilockerVerified: { type: Boolean, default: false },
+    digilockerVerifiedAt: { type: Date, default: null }
   },
   { timestamps: true }
 );
