@@ -1,11 +1,12 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Doctor = require("../models/Doctor");
+const { isVerified } = require("../utils/verificationStore");
 
 // ================= REGISTER =================
 exports.registerDoctor = async (req, res) => {
   try {
-    const { name, doctorRegId, specialty, phone, email, password } = req.body;
+    const { name, doctorRegId, specialty, phone, email, password, aadhaarNumber } = req.body;
 
     if (!name || !doctorRegId || !password) {
       return res.status(400).json({
@@ -21,6 +22,7 @@ exports.registerDoctor = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const verified = aadhaarNumber ? isVerified(aadhaarNumber) : false;
 
     const newDoctor = new Doctor({
       name,
@@ -28,7 +30,10 @@ exports.registerDoctor = async (req, res) => {
       specialty: specialty || "",
       phone: phone || "",
       email: email || "",
-      password: hashedPassword
+      password: hashedPassword,
+      aadhaarNumber: aadhaarNumber || "",
+      digilockerVerified: verified,
+      digilockerVerifiedAt: verified ? new Date() : null
     });
 
     await newDoctor.save();

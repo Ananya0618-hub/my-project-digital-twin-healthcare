@@ -56,19 +56,8 @@ function App() {
   const [regAadhaar, setRegAadhaar] = useState("");
   const [regPassword, setRegPassword] = useState("");
 
-  // ===== Registration wizard: 1 = details, 2 = Aadhaar document, 3 = mobile OTP =====
+  // ===== Registration wizard: 1 = details, 2 = DigiLocker, 3 = result =====
   const [regStep, setRegStep] = useState(1);
-
-  const [aadhaarFile, setAadhaarFile] = useState(null);
-  const [aadhaarVerifyLoading, setAadhaarVerifyLoading] = useState(false);
-  const [aadhaarVerifyResult, setAadhaarVerifyResult] = useState(null);
-  const [aadhaarVerifyError, setAadhaarVerifyError] = useState(null);
-
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpDemoValue, setOtpDemoValue] = useState(null);
-  const [otpInput, setOtpInput] = useState("");
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [otpError, setOtpError] = useState(null);
 
   const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -108,6 +97,10 @@ function App() {
   const [docPhone, setDocPhone] = useState("");
   const [docEmail, setDocEmail] = useState("");
   const [docPassword, setDocPassword] = useState("");
+
+  // ===== Doctor registration wizard: 1 = details, 2 = DigiLocker, 3 = result =====
+  const [docRegStep, setDocRegStep] = useState(1);
+  const [docAadhaarNumber, setDocAadhaarNumber] = useState("");
 
   // ===== Doctor dashboard: patient lookup =====
   const [searchAadhaar, setSearchAadhaar] = useState("");
@@ -158,17 +151,60 @@ function App() {
     if (result) {
       setDigilockerBanner(result);
       window.history.replaceState({}, "", window.location.pathname);
+
+      // A full-page redirect to DigiLocker wipes React state, so if this
+      // was part of a registration in progress, restore everything that
+      // was saved right before redirecting.
+      const pendingRaw = sessionStorage.getItem("pendingRegistration");
+      if (pendingRaw) {
+        try {
+          const pending = JSON.parse(pendingRaw);
+
+          if (pending.flow === "patient") {
+            setRegName(pending.fields.regName);
+            setRegDob(pending.fields.regDob);
+            setRegMobile(pending.fields.regMobile);
+            setRegEmail(pending.fields.regEmail);
+            setRegAddress(pending.fields.regAddress);
+            setRegAadhaar(pending.fields.regAadhaar);
+            setRegPassword(pending.fields.regPassword);
+            setRegStep(pending.step);
+            setView("register");
+          } else if (pending.flow === "doctor") {
+            setDocName(pending.fields.docName);
+            setDocRegId(pending.fields.docRegId);
+            setDocSpecialty(pending.fields.docSpecialty);
+            setDocPhone(pending.fields.docPhone);
+            setDocEmail(pending.fields.docEmail);
+            setDocPassword(pending.fields.docPassword);
+            setDocAadhaarNumber(pending.fields.docAadhaarNumber);
+            setDocRegStep(pending.step);
+            setView("doctorRegister");
+          }
+        } catch {
+          // Malformed/missing saved state — nothing to restore, just show the banner.
+        }
+        sessionStorage.removeItem("pendingRegistration");
+      }
     }
   }, []);
 
-  const startDigilockerVerification = async () => {
+  // Shared helper: save in-progress registration state (since a full-page
+  // redirect to DigiLocker wipes React state) and kick off the redirect.
+  const saveAndRedirectToDigilocker = async (aadhaarNumber, role, pendingState) => {
+    if (!aadhaarNumber || aadhaarNumber.length !== 12) {
+      alert("Enter a 12-digit Aadhaar number first ❌");
+      return;
+    }
+
     setDigilockerLoading(true);
+    sessionStorage.setItem("pendingRegistration", JSON.stringify(pendingState));
 
     try {
       const res = await fetch(`${API}/digilocker/initiate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aadhaar })
+        body: JSON.stringify({ aadhaar: aadhaarNumber, role })
       });
 
       const data = await res.json();
@@ -176,16 +212,32 @@ function App() {
       if (!res.ok) {
         alert(data.message || "Couldn't start DigiLocker verification ❌");
         setDigilockerLoading(false);
+        sessionStorage.removeItem("pendingRegistration");
         return;
       }
 
-      // Full-page redirect — DigiLocker's OAuth flow requires top-level
-      // navigation, this can't happen via fetch/XHR.
       window.location.href = data.authorizationUrl;
     } catch {
       alert("Network error ❌");
       setDigilockerLoading(false);
+      sessionStorage.removeItem("pendingRegistration");
     }
+  };
+
+  const startPatientRegistrationDigilocker = () => {
+    saveAndRedirectToDigilocker(regAadhaar, "patient", {
+      flow: "patient",
+      step: 3,
+      fields: { regName, regDob, regMobile, regEmail, regAddress, regAadhaar, regPassword }
+    });
+  };
+
+  const startDoctorRegistrationDigilocker = () => {
+    saveAndRedirectToDigilocker(docAadhaarNumber, "doctor", {
+      flow: "doctor",
+      step: 3,
+      fields: { docName, docRegId, docSpecialty, docPhone, docEmail, docPassword, docAadhaarNumber }
+    });
   };
 
   // LOAD TREATMENTS
@@ -248,113 +300,8 @@ function App() {
     }
   };
 
-  // REGISTER
-  // STEP 2: VERIFY AADHAAR DOCUMENT (OCR + checksum, matched against typed number)
-  const verifyAadhaarDocument = async () => {
-    if (regAadhaar.length !== 12) {
-      alert("Enter the 12-digit Aadhaar number in Step 1 first ❌");
-      return;
-    }
-    if (!aadhaarFile) {
-      alert("Please choose an Aadhaar card image to upload ❌");
-      return;
-    }
-
-    setAadhaarVerifyLoading(true);
-    setAadhaarVerifyError(null);
-    setAadhaarVerifyResult(null);
-
-    try {
-      const form = new FormData();
-      form.append("aadhaarImage", aadhaarFile);
-      form.append("aadhaarNumber", regAadhaar);
-
-      const res = await fetch(`${API}/verify/extract`, {
-        method: "POST",
-        body: form
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setAadhaarVerifyError(data.message || "Verification failed ❌");
-        return;
-      }
-
-      setAadhaarVerifyResult(data);
-    } catch {
-      setAadhaarVerifyError("Network error ❌");
-    } finally {
-      setAadhaarVerifyLoading(false);
-    }
-  };
-
-  // STEP 3: SEND SIMULATED OTP
-  const sendOtpForMobile = async () => {
-    if (regMobile.length !== 10) {
-      alert("Enter a 10-digit mobile number in Step 1 first ❌");
-      return;
-    }
-
-    setOtpLoading(true);
-    setOtpError(null);
-
-    try {
-      const res = await fetch(`${API}/verify/send-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile: regMobile })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setOtpError(data.message || "Couldn't generate OTP ❌");
-        return;
-      }
-
-      setOtpSent(true);
-      setOtpDemoValue(data.otp);
-    } catch {
-      setOtpError("Network error ❌");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  // STEP 3: VERIFY OTP, THEN ACTUALLY CREATE THE ACCOUNT
-  const verifyOtpAndRegister = async () => {
-    if (!otpInput.trim()) {
-      alert("Enter the OTP ❌");
-      return;
-    }
-
-    setOtpLoading(true);
-    setOtpError(null);
-
-    try {
-      const res = await fetch(`${API}/verify/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile: regMobile, otp: otpInput })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.verified) {
-        setOtpError(data.message || "OTP verification failed ❌");
-        return;
-      }
-
-      await registerUser();
-    } catch {
-      setOtpError("Network error ❌");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const registerUser = async () => {
+  // REGISTER (creates the account, then logs straight in — no separate login step)
+  const registerAndLoginPatient = async () => {
     if (!regName.trim()) {
       alert("Please enter your name ❌");
       return;
@@ -393,12 +340,33 @@ function App() {
         alert(data.message || "Registration failed ❌");
         return;
       }
-
-      alert("Registered successfully ✅ Please log in.");
-      setAadhaar(regAadhaar);
-      setView("login");
     } catch {
       alert("Server error ❌");
+      return;
+    }
+
+    // Auto-login right after registering, straight into the dashboard.
+    try {
+      const loginRes = await fetch(`${API}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aadhaar: regAadhaar, password: regPassword })
+      });
+
+      const loginData = await loginRes.json();
+
+      if (loginRes.ok) {
+        localStorage.setItem("token", loginData.token || "");
+        localStorage.setItem("user", JSON.stringify({ aadhaar: loginData.aadhaar || regAadhaar }));
+        setAadhaar(regAadhaar);
+        setView("app");
+      } else {
+        alert("Registered successfully ✅ — please log in.");
+        setView("login");
+      }
+    } catch {
+      alert("Registered successfully ✅ — please log in.");
+      setView("login");
     }
   };
 
@@ -519,7 +487,7 @@ function App() {
   };
 
   // DOCTOR REGISTER
-  const registerDoctor = async () => {
+  const registerAndLoginDoctor = async () => {
     if (!docName.trim() || !docRegId.trim() || !docPassword) {
       alert("Name, Doctor Registration ID and password are required ❌");
       return;
@@ -535,7 +503,8 @@ function App() {
           specialty: docSpecialty,
           phone: docPhone,
           email: docEmail,
-          password: docPassword
+          password: docPassword,
+          aadhaarNumber: docAadhaarNumber
         })
       });
 
@@ -545,12 +514,34 @@ function App() {
         alert(data.message || "Registration failed ❌");
         return;
       }
-
-      alert("Doctor registered successfully ✅ Please log in.");
-      setDocRegIdLogin(docRegId);
-      setView("doctorLogin");
     } catch {
       alert("Server error ❌");
+      return;
+    }
+
+    // Auto-login right after registering, straight into the doctor dashboard.
+    try {
+      const loginRes = await fetch(`${API}/doctorauth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doctorRegId: docRegId, password: docPassword })
+      });
+
+      const loginData = await loginRes.json();
+
+      if (loginRes.ok) {
+        const docInfo = { doctorRegId: loginData.doctorRegId, name: loginData.name, specialty: loginData.specialty };
+        localStorage.setItem("doctorToken", loginData.token || "");
+        localStorage.setItem("doctor", JSON.stringify(docInfo));
+        setDoctor(docInfo);
+        setView("doctorApp");
+      } else {
+        alert("Registered successfully ✅ — please log in.");
+        setView("doctorLogin");
+      }
+    } catch {
+      alert("Registered successfully ✅ — please log in.");
+      setView("doctorLogin");
     }
   };
 
@@ -827,7 +818,7 @@ function App() {
             <p className="auth-subtitle">Step {regStep} of 3</p>
           </div>
 
-          {/* STEP 1: PERSONAL + ACCOUNT DETAILS */}
+          {/* STEP 1: ALL DETAILS */}
           {regStep === 1 && (
             <>
               <div className="form-section-label">Personal Details</div>
@@ -861,6 +852,7 @@ function App() {
                   if (regAadhaar.length !== 12) return alert("Aadhaar must be 12 digits ❌");
                   if (regMobile.length !== 10) return alert("Mobile number must be 10 digits ❌");
                   if (!regPassword) return alert("Please choose a password ❌");
+                  setDigilockerBanner(null);
                   setRegStep(2);
                 }}
               >
@@ -873,117 +865,65 @@ function App() {
             </>
           )}
 
-          {/* STEP 2: AADHAAR DOCUMENT VERIFICATION */}
+          {/* STEP 2: DIGILOCKER VERIFICATION */}
           {regStep === 2 && (
             <>
-              <div className="form-section-label">Verify Aadhaar Document</div>
+              <div className="form-section-label">Verify with DigiLocker</div>
               <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -4, marginBottom: 16 }}>
-                Upload a photo of your Aadhaar card. We'll read the printed number (OCR) and check
-                it against the number you entered, plus validate it against the checksum pattern
-                UIDAI uses for real Aadhaar numbers.
+                Confirm your Aadhaar through DigiLocker — you'll log in with your own Aadhaar-linked
+                mobile OTP directly on DigiLocker's site, not ours. You'll be redirected away and
+                brought back here automatically once you're done.
               </p>
 
-              <label className="field-label">Aadhaar Card Photo</label>
-              <input
-                className="input"
-                type="file"
-                accept="image/*"
-                onChange={e => {
-                  setAadhaarFile(e.target.files?.[0] || null);
-                  setAadhaarVerifyResult(null);
-                  setAadhaarVerifyError(null);
-                }}
-              />
-
-              <button
-                className="btn btn-primary"
-                style={{ marginTop: 18 }}
-                onClick={verifyAadhaarDocument}
-                disabled={aadhaarVerifyLoading}
-              >
-                {aadhaarVerifyLoading ? <Loader2 size={16} className="spin" /> : null}
-                {aadhaarVerifyLoading ? "Reading document..." : "Verify Document"}
+              <button className="btn btn-primary" onClick={startPatientRegistrationDigilocker} disabled={digilockerLoading}>
+                {digilockerLoading ? <Loader2 size={16} className="spin" /> : <ShieldCheck size={16} />}
+                {digilockerLoading ? "Redirecting..." : "Verify with DigiLocker"}
               </button>
-
-              {aadhaarVerifyError && <div className="ai-error">{aadhaarVerifyError}</div>}
-
-              {aadhaarVerifyResult && (
-                <div className="ai-summary-box">
-                  <p>{aadhaarVerifyResult.message}</p>
-                  <p>
-                    Checksum: <strong>{aadhaarVerifyResult.checksumValid ? "Valid pattern" : "Does not match UIDAI's pattern"}</strong>
-                  </p>
-                </div>
-              )}
 
               <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
                 <button className="btn" style={{ background: "var(--border)", color: "var(--ink-700)" }} onClick={() => setRegStep(1)}>
                   Back
                 </button>
-                <button
-                  className="btn btn-primary"
-                  disabled={!aadhaarVerifyResult?.matched}
-                  onClick={() => setRegStep(3)}
-                >
-                  Continue
-                </button>
               </div>
 
-              <button className="link-btn" onClick={() => setRegStep(3)}>
-                Skip for now (demo mode)
+              <button
+                className="link-btn"
+                onClick={() => {
+                  setDigilockerBanner(null);
+                  setRegStep(3);
+                }}
+              >
+                Skip for now (pending platform approval)
               </button>
             </>
           )}
 
-          {/* STEP 3: MOBILE OTP */}
+          {/* STEP 3: RESULT */}
           {regStep === 3 && (
             <>
-              <div className="form-section-label">Verify Mobile Number</div>
-              <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -4, marginBottom: 16 }}>
-                <strong>Demo mode:</strong> this OTP is simulated and shown directly below instead
-                of being sent by real SMS (which needs a paid provider and DLT registration in India).
-              </p>
+              <div className="form-section-label">Verification Result</div>
 
-              <button className="btn btn-primary" onClick={sendOtpForMobile} disabled={otpLoading}>
-                {otpLoading && !otpSent ? <Loader2 size={16} className="spin" /> : null}
-                {otpSent ? "Resend OTP" : "Send OTP"}
-              </button>
-
-              {otpSent && otpDemoValue && (
+              {digilockerBanner === "success" && (
                 <div className="ai-summary-box">
-                  <p>
-                    Your demo OTP is <strong style={{ fontSize: 18 }}>{otpDemoValue}</strong>
-                  </p>
-                  <p>Valid for 5 minutes.</p>
+                  <p>Aadhaar verified successfully via DigiLocker ✅</p>
                 </div>
               )}
-
-              {otpSent && (
-                <>
-                  <label className="field-label" style={{ marginTop: 18 }}>Enter OTP</label>
-                  <input
-                    className="input"
-                    placeholder="6-digit OTP"
-                    value={otpInput}
-                    onChange={e => setOtpInput(e.target.value)}
-                    maxLength={6}
-                  />
-                </>
+              {digilockerBanner === "failed" && (
+                <div className="ai-error">DigiLocker verification wasn't completed ❌</div>
               )}
-
-              {otpError && <div className="ai-error">{otpError}</div>}
+              {digilockerBanner === "error" && (
+                <div className="ai-error">Something went wrong during DigiLocker verification ❌</div>
+              )}
+              {!digilockerBanner && (
+                <div className="ai-error">Aadhaar not verified yet — you can still continue for now</div>
+              )}
 
               <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
                 <button className="btn" style={{ background: "var(--border)", color: "var(--ink-700)" }} onClick={() => setRegStep(2)}>
-                  Back
+                  Try Again
                 </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={otpSent ? verifyOtpAndRegister : registerUser}
-                  disabled={otpLoading}
-                >
-                  {otpLoading ? <Loader2 size={16} className="spin" /> : null}
-                  {otpSent ? "Verify & Register" : "Skip & Register"}
+                <button className="btn btn-primary" onClick={registerAndLoginPatient}>
+                  Continue to Dashboard
                 </button>
               </div>
             </>
@@ -1039,7 +979,7 @@ function App() {
     );
   }
 
-  // ================= DOCTOR REGISTER VIEW =================
+  // ================= DOCTOR REGISTER VIEW (3-step wizard) =================
   if (view === "doctorRegister") {
     return (
       <div className="auth-page">
@@ -1049,34 +989,117 @@ function App() {
               <Stethoscope size={26} />
             </div>
             <h2 className="auth-title">Doctor Registration</h2>
-            <p className="auth-subtitle">Register with your Doctor Registration ID</p>
+            <p className="auth-subtitle">Step {docRegStep} of 3</p>
           </div>
 
-          <label className="field-label">Full Name</label>
-          <input className="input" placeholder="Dr. Your Name" value={docName} onChange={e => setDocName(e.target.value)} />
+          {/* STEP 1: ALL DETAILS */}
+          {docRegStep === 1 && (
+            <>
+              <label className="field-label">Full Name</label>
+              <input className="input" placeholder="Dr. Your Name" value={docName} onChange={e => setDocName(e.target.value)} />
 
-          <label className="field-label">Doctor Registration ID</label>
-          <input className="input" placeholder="e.g. DOC12345" value={docRegId} onChange={e => setDocRegId(e.target.value)} />
+              <label className="field-label">Doctor Registration ID</label>
+              <input className="input" placeholder="e.g. DOC12345" value={docRegId} onChange={e => setDocRegId(e.target.value)} />
 
-          <label className="field-label">Specialty</label>
-          <input className="input" placeholder="e.g. Cardiologist" value={docSpecialty} onChange={e => setDocSpecialty(e.target.value)} />
+              <label className="field-label">Specialty</label>
+              <input className="input" placeholder="e.g. Cardiologist" value={docSpecialty} onChange={e => setDocSpecialty(e.target.value)} />
 
-          <label className="field-label">Phone</label>
-          <input className="input" placeholder="Phone number" value={docPhone} onChange={e => setDocPhone(e.target.value)} />
+              <label className="field-label">Phone</label>
+              <input className="input" placeholder="Phone number" value={docPhone} onChange={e => setDocPhone(e.target.value)} />
 
-          <label className="field-label">Email</label>
-          <input className="input" placeholder="you@hospital.com" value={docEmail} onChange={e => setDocEmail(e.target.value)} />
+              <label className="field-label">Email</label>
+              <input className="input" placeholder="you@hospital.com" value={docEmail} onChange={e => setDocEmail(e.target.value)} />
 
-          <label className="field-label">Password</label>
-          <input className="input" type="password" placeholder="Choose a password" value={docPassword} onChange={e => setDocPassword(e.target.value)} />
+              <label className="field-label">Aadhaar Number</label>
+              <input className="input" placeholder="12-digit Aadhaar" value={docAadhaarNumber} onChange={e => setDocAadhaarNumber(e.target.value)} maxLength={12} />
 
-          <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={registerDoctor}>
-            Register
-          </button>
+              <label className="field-label">Password</label>
+              <input className="input" type="password" placeholder="Choose a password" value={docPassword} onChange={e => setDocPassword(e.target.value)} />
 
-          <button className="link-btn" onClick={() => setView("doctorLogin")}>
-            Already registered? Login
-          </button>
+              <button
+                className="btn btn-primary"
+                style={{ marginTop: 22 }}
+                onClick={() => {
+                  if (!docName.trim() || !docRegId.trim() || !docPassword) {
+                    return alert("Name, Doctor Registration ID and password are required ❌");
+                  }
+                  if (docAadhaarNumber.length !== 12) return alert("Aadhaar must be 12 digits ❌");
+                  setDigilockerBanner(null);
+                  setDocRegStep(2);
+                }}
+              >
+                Continue
+              </button>
+
+              <button className="link-btn" onClick={() => setView("doctorLogin")}>
+                Already registered? Login
+              </button>
+            </>
+          )}
+
+          {/* STEP 2: DIGILOCKER VERIFICATION */}
+          {docRegStep === 2 && (
+            <>
+              <div className="form-section-label">Verify with DigiLocker</div>
+              <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -4, marginBottom: 16 }}>
+                Confirm your Aadhaar through DigiLocker — you'll log in with your own Aadhaar-linked
+                mobile OTP directly on DigiLocker's site, not ours. You'll be redirected away and
+                brought back here automatically once you're done.
+              </p>
+
+              <button className="btn btn-primary" onClick={startDoctorRegistrationDigilocker} disabled={digilockerLoading}>
+                {digilockerLoading ? <Loader2 size={16} className="spin" /> : <ShieldCheck size={16} />}
+                {digilockerLoading ? "Redirecting..." : "Verify with DigiLocker"}
+              </button>
+
+              <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                <button className="btn" style={{ background: "var(--border)", color: "var(--ink-700)" }} onClick={() => setDocRegStep(1)}>
+                  Back
+                </button>
+              </div>
+
+              <button
+                className="link-btn"
+                onClick={() => {
+                  setDigilockerBanner(null);
+                  setDocRegStep(3);
+                }}
+              >
+                Skip for now (pending platform approval)
+              </button>
+            </>
+          )}
+
+          {/* STEP 3: RESULT */}
+          {docRegStep === 3 && (
+            <>
+              <div className="form-section-label">Verification Result</div>
+
+              {digilockerBanner === "success" && (
+                <div className="ai-summary-box">
+                  <p>Aadhaar verified successfully via DigiLocker ✅</p>
+                </div>
+              )}
+              {digilockerBanner === "failed" && (
+                <div className="ai-error">DigiLocker verification wasn't completed ❌</div>
+              )}
+              {digilockerBanner === "error" && (
+                <div className="ai-error">Something went wrong during DigiLocker verification ❌</div>
+              )}
+              {!digilockerBanner && (
+                <div className="ai-error">Aadhaar not verified yet — you can still continue for now</div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                <button className="btn" style={{ background: "var(--border)", color: "var(--ink-700)" }} onClick={() => setDocRegStep(2)}>
+                  Try Again
+                </button>
+                <button className="btn btn-primary" onClick={registerAndLoginDoctor}>
+                  Continue to Dashboard
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -1334,36 +1357,6 @@ function App() {
                   <h2 className="hero-name">{profile?.name || aadhaar}</h2>
                 </div>
               </div>
-            </div>
-
-            {digilockerBanner && (
-              <div className={digilockerBanner === "success" ? "ai-summary-box" : "ai-error"}>
-                {digilockerBanner === "success" && "Aadhaar verified successfully via DigiLocker ✅"}
-                {digilockerBanner === "failed" && "DigiLocker verification wasn't completed — you can try again below ❌"}
-                {digilockerBanner === "error" && "Something went wrong during DigiLocker verification — try again ❌"}
-              </div>
-            )}
-
-            <div className="card">
-              <h3 className="card-heading">
-                <ShieldCheck size={17} color="var(--blue-600)" />
-                Aadhaar Verification
-              </h3>
-
-              {profile?.digilockerVerified ? (
-                <span className="status-badge status-normal">Verified via DigiLocker</span>
-              ) : (
-                <>
-                  <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginBottom: 14 }}>
-                    Confirm your Aadhaar through DigiLocker — you'll log in with your own
-                    Aadhaar-linked mobile OTP directly on DigiLocker's site, not ours.
-                  </p>
-                  <button className="btn btn-primary" onClick={startDigilockerVerification} disabled={digilockerLoading}>
-                    {digilockerLoading ? <Loader2 size={16} className="spin" /> : <ShieldCheck size={16} />}
-                    {digilockerLoading ? "Redirecting..." : "Verify with DigiLocker"}
-                  </button>
-                </>
-              )}
             </div>
 
             <div className="stat-grid">

@@ -1,4 +1,6 @@
 const Patient = require("../models/Patient");
+const Doctor = require("../models/Doctor");
+const { markVerified } = require("../utils/verificationStore");
 
 // Sandbox's test environment — pre-approved for all standard products
 // (including DigiLocker) without needing production/business approval,
@@ -43,16 +45,15 @@ async function getAccessToken() {
   return cachedToken;
 }
 
-// In-memory map of DigiLocker session_id -> the patient's Aadhaar that
-// initiated it, so we know whose record to update once they complete
-// consent. Resets on server restart, which just means an in-flight
-// verification would need to be started again — acceptable for a demo.
-const sessionToAadhaar = new Map();
+// In-memory map of DigiLocker session_id -> { aadhaar, role }. "role" is
+// "patient" or "doctor" — needed because this same flow now runs during
+// registration for both, before any database account exists yet.
+const sessionToInfo = new Map();
 
 // ================= STEP 1: START A DIGILOCKER SESSION =================
 exports.initiateSession = async (req, res) => {
   try {
-    const { aadhaar } = req.body;
+    const { aadhaar, role } = req.body;
 
     if (!aadhaar) {
       return res.status(400).json({ message: "aadhaar is required ❌" });
@@ -90,7 +91,7 @@ exports.initiateSession = async (req, res) => {
     const sessionData = await sessionRes.json();
     const { authorization_url, session_id } = sessionData.data;
 
-    sessionToAadhaar.set(session_id, aadhaar);
+    sessionToInfo.set(session_id, { aadhaar, role: role || "patient" });
 
     res.json({ authorizationUrl: authorization_url });
   } catch (err) {
@@ -109,12 +110,13 @@ exports.handleCallback = async (req, res) => {
     // Sandbox encodes the session_id as the second pipe-separated segment
     // of the OAuth "state" parameter it passes through DigiLocker and back.
     const sessionId = state ? state.split("|")[1] : null;
-    const aadhaar = sessionId ? sessionToAadhaar.get(sessionId) : null;
+    const info = sessionId ? sessionToInfo.get(sessionId) : null;
 
-    if (!sessionId || !aadhaar) {
+    if (!sessionId || !info) {
       return res.redirect(`${frontendBase}/?digilocker=error`);
     }
 
+    const { aadhaar, role } = info;
     const token = await getAccessToken();
 
     const statusRes = await fetch(`${SANDBOX_BASE}/kyc/digilocker/sessions/${sessionId}/status`, {
@@ -127,16 +129,31 @@ exports.handleCallback = async (req, res) => {
     const statusData = await statusRes.json();
     const status = statusData.data?.status;
 
+    sessionToInfo.delete(sessionId);
+
     if (status === "succeeded") {
-      await Patient.findOneAndUpdate(
-        { aadhaar_id: aadhaar },
-        { digilockerVerified: true, digilockerVerifiedAt: new Date() }
-      );
-      sessionToAadhaar.delete(sessionId);
+      // Record it in the in-memory store immediately — this is what makes
+      // verification-during-registration work, since no Patient/Doctor
+      // record may exist in the database yet at this point.
+      markVerified(aadhaar, role);
+
+      // Best-effort: if an account already exists (e.g. verifying from an
+      // existing dashboard rather than mid-registration), update it too.
+      if (role === "doctor") {
+        await Doctor.findOneAndUpdate(
+          { aadhaarNumber: aadhaar },
+          { digilockerVerified: true, digilockerVerifiedAt: new Date() }
+        );
+      } else {
+        await Patient.findOneAndUpdate(
+          { aadhaar_id: aadhaar },
+          { digilockerVerified: true, digilockerVerifiedAt: new Date() }
+        );
+      }
+
       return res.redirect(`${frontendBase}/?digilocker=success`);
     }
 
-    sessionToAadhaar.delete(sessionId);
     return res.redirect(`${frontendBase}/?digilocker=failed`);
   } catch (err) {
     console.error("❌ DIGILOCKER CALLBACK ERROR:", err);

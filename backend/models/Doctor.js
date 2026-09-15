@@ -9,7 +9,10 @@ const doctorSchema = new mongoose.Schema(
     specialty: { type: String, default: "" },
     phone: { type: String, default: "" },
     email: { type: String, default: "" },
-    password: { type: String, required: true }
+    password: { type: String, required: true },
+    aadhaarNumber: { type: String, default: "" },
+    digilockerVerified: { type: Boolean, default: false },
+    digilockerVerifiedAt: { type: Date, default: null }
   },
   { timestamps: true }
 );

@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Patient = require("../models/Patient");
+const { isVerified } = require("../utils/verificationStore");
 
 // ================= REGISTER =================
 exports.register = async (req, res) => {
@@ -61,7 +62,9 @@ exports.register = async (req, res) => {
         mobile: mobile || "",
         email: email || "",
         address: address || "",
-        dob: dob || ""
+        dob: dob || "",
+        digilockerVerified: isVerified(aadhaar),
+        digilockerVerifiedAt: isVerified(aadhaar) ? new Date() : null
       });
 
       await newPatient.save();
