@@ -43,7 +43,8 @@ Return ONLY one JSON object, with no explanation and no code fences:
 {"reportDate": "YYYY-MM-DD" or null, "results": [{"testName": string, "resultValue": string, "unit": string, "referenceRange": string}]}
 
 Rules:
-- Copy testName, resultValue, unit and referenceRange exactly as printed. Never calculate, estimate, convert units, round, or fill in a value that is not printed.
+- Never change a digit or a decimal point. resultValue and referenceRange must be copied exactly as printed; never calculate, estimate, round, convert units, or fill in a value that is not printed.
+- testName and unit are copied as printed, EXCEPT that OCR often swaps look-alike characters, and you should write the standard form in those cases: for example "HbAlc" means HbA1c, "Jcumm" or "Ifcumm" means /cumm, "ulU/mL" means uIU/mL, "mgjdL" means mg/dL.
 - Include only measured laboratory tests that have a printed result: a number, or a short qualitative word such as Positive, Negative, Reactive or Nil.
 - Skip report headers, patient and doctor details, test methods, specimen information, comments, interpretations, notes, and page footers.
 - referenceRange is the printed normal / biological reference interval for that test, exactly as written (for example "13.0 - 17.0" or "< 200"). Use "" if none is printed.
@@ -133,6 +134,76 @@ const clip = (v, max) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, ma
 // those folded together. Values are never folded: 9 and 90 are different results.
 const fold = (s) => s.replace(/[1i|!]/g, "l").replace(/0/g, "o");
 
+// Standard units. OCR garbles the punctuation in these constantly ("/cumm" -> "Jcumm", "uIU/mL" -> "ulU/mL"),
+// so a printed unit that matches one of them once look-alike characters are folded together is repaired.
+const KNOWN_UNITS = [
+  "g/dL", "mg/dL", "mg/L", "g/L", "ug/dL", "ug/L", "mcg/dL", "ng/mL", "ng/dL", "ng/L", "pg/mL", "pg", "fL", "%",
+  "mmol/L", "umol/L", "nmol/L", "pmol/L", "mEq/L", "IU/L", "U/L", "IU/mL", "U/mL", "mIU/mL", "mIU/L", "uIU/mL", "uU/mL",
+  "/cumm", "/uL", "cells/cumm", "cells/uL", "million/cumm", "million/uL", "thousand/cumm", "lakh/cumm",
+  "10^3/uL", "10^6/uL", "mm/hr", "mm/1st hr", "mL/min", "mg/g", "mmHg", "sec", "seconds", "/HPF", "ratio"
+];
+const foldUnit = (s) => String(s).toLowerCase().replace(/[µμ]/g, "u").replace(/[1i|!/\\j]/g, "l").replace(/\s+/g, "");
+const FOLDED_UNITS = new Map(KNOWN_UNITS.map((u) => [foldUnit(u), u]));
+// case matters ("mg/dl" is normalised to "mg/dL"); only the µ/u spelling is left as printed
+const sameUnit = (a, b) => a.replace(/[µμ]/g, "u") === b.replace(/[µμ]/g, "u");
+
+// true if a and b differ by at most one inserted, deleted or changed character
+function withinOneEdit(a, b) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  if (i === a.length || i === b.length) return true;
+  return a.slice(i + 1) === b.slice(i + 1) || a.slice(i) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i);
+}
+
+function canonicalUnit(unit) {
+  const f = foldUnit(unit);
+  if (FOLDED_UNITS.has(f)) {
+    const canonical = FOLDED_UNITS.get(f);
+    return sameUnit(unit, canonical) ? unit : canonical; // keep a clean printed form (e.g. "µIU/mL")
+  }
+  if (f.length >= 5) {
+    const near = KNOWN_UNITS.filter((u) => foldUnit(u).length >= 5 && withinOneEdit(f, foldUnit(u)));
+    if (near.length === 1) return near[0];
+  }
+  return unit;
+}
+
+// Common test names. If a printed name matches one of these once look-alike characters are folded
+// together, the standard spelling is used: "HbAlc" -> "HbA1c", "Vitamin Bl2" -> "Vitamin B12".
+// Anything not on the list is left exactly as printed, and a different spelling ("Haemoglobin") is
+// never rewritten — only OCR confusions are repaired. Consistent names also keep trends together.
+const KNOWN_NAMES = [
+  "HbA1c", "Haemoglobin", "Hemoglobin", "Total Leucocyte Count", "Total WBC Count", "WBC Count", "RBC Count", "Platelet Count",
+  "Hematocrit", "PCV", "MCV", "MCH", "MCHC", "RDW", "ESR", "Neutrophils", "Lymphocytes", "Eosinophils", "Monocytes", "Basophils",
+  "Fasting Blood Sugar", "Post Prandial Blood Sugar", "Random Blood Sugar", "Total Cholesterol", "HDL Cholesterol",
+  "LDL Cholesterol", "VLDL Cholesterol", "Triglycerides", "Serum Creatinine", "Blood Urea", "Blood Urea Nitrogen", "Uric Acid",
+  "Sodium", "Potassium", "Chloride", "Calcium", "Phosphorus", "Magnesium", "Total Bilirubin", "Direct Bilirubin",
+  "Indirect Bilirubin", "SGOT (AST)", "SGPT (ALT)", "Alkaline Phosphatase", "Total Protein", "Albumin", "Globulin", "GGT",
+  "TSH", "T3", "T4", "Free T3", "Free T4", "Vitamin D (25-OH)", "Vitamin B12", "Vitamin B6", "Folate", "Ferritin", "Iron",
+  "TIBC", "CRP", "hs-CRP", "Homocysteine", "PSA"
+];
+const foldName = (s) => String(s).toLowerCase().replace(/[|!1i]/g, "l").replace(/[^a-z0-9]/g, "").replace(/0/g, "o");
+const FOLDED_NAMES = new Map(KNOWN_NAMES.map((n) => [foldName(n), n]));
+const canonicalName = (name) => FOLDED_NAMES.get(foldName(name)) || name;
+
+// A lost decimal point turns "0.7 - 1.3" into "0.7-13", "07-13" or "04-40": plausible-looking and wrong.
+// Numbers with a leading zero ("07") never appear in printed ranges, and "0.7-13" (decimal low, bare-integer
+// high far above it) almost never does. Such rows are flagged for a human; the range is kept so it can be fixed.
+function rangeSuspicious(range) {
+  const text = String(range || "");
+  if ((text.match(/\d+(?:\.\d+)?/g) || []).some((n) => /^0\d/.test(n))) return true;
+  const m = text.match(/^\s*(\d+\.\d+)\s*(?:-|–|—|to)\s*(\d+)\s*$/i);
+  return !!m && Number(m[2]) >= 10 && Number(m[2]) >= 8 * Number(m[1]);
+}
+
+// is this unit (allowing for OCR look-alikes) actually somewhere in the report?
+function unitInSource(unit, src) {
+  const fu = foldUnit(unit);
+  if (foldUnit(src).includes(fu)) return true;
+  return fu.length >= 5 && src.split(/\s+/).some((t) => withinOneEdit(foldUnit(t), fu));
+}
+
 // "13.5" must not be found inside "113.5" or "13.55"
 function appearsAsToken(src, token) {
   return new RegExp(`(?<![\\d.])${esc(token.toLowerCase())}(?!\\d|\\.\\d)`).test(src);
@@ -196,15 +267,18 @@ function validateRows(rawRows, sourceText) {
         rangeInvented = true;
       }
     }
-    if (unit && !src.includes(unit.toLowerCase())) unit = "";
+    if (unit) unit = unitInSource(unit, src) ? canonicalUnit(unit) : "";
+
+    const suspicious = rangeSuspicious(referenceRange);
 
     rows.push({
-      testName,
+      testName: canonicalName(testName),
       resultValue,
       unit,
       referenceRange,
-      status: computeLabStatus(resultValue, referenceRange),
-      verified: valueFound && nameFound && !rangeInvented
+      // no status from a range that probably lost its decimal point
+      status: suspicious ? null : computeLabStatus(resultValue, referenceRange),
+      verified: valueFound && nameFound && !rangeInvented && !suspicious
     });
     if (rows.length >= MAX_ROWS) break;
   }
@@ -258,4 +332,4 @@ async function extractLabRows(text, { llm = defaultLlm, now = new Date() } = {})
   };
 }
 
-module.exports = { redactIdentity, parseJsonLoose, patternExtract, validateRows, extractLabRows, findDate, SYSTEM_PROMPT };
+module.exports = { redactIdentity, parseJsonLoose, patternExtract, validateRows, extractLabRows, findDate, canonicalUnit, canonicalName, rangeSuspicious, SYSTEM_PROMPT };

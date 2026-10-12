@@ -417,7 +417,8 @@ function LabReportUpload({ aadhaar, onSaved }) {
             {unverified > 0 && (
               <p className="report-warn">
                 {unverified} row{unverified === 1 ? "" : "s"} marked <strong>Check</strong> couldn't be matched to the text of the
-                report (or had a reference range that wasn't in it). They're unticked — correct them, then tick them if they're right.
+                report, or had a reference range that looks wrong (a lost decimal point, for example). They're unticked — correct them, then tick them if they're right.
+                If your report lists more tests than this, add the missing ones with the form below, or try a clearer photo.
               </p>
             )}
           </div>

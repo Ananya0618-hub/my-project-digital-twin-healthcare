@@ -200,3 +200,75 @@ test("the real PDF reader pulls every row out of a digital lab report", async ()
     truth
   );
 });
+
+test("canonicalUnit repairs OCR look-alikes in units and leaves good units and unknown ones alone", () => {
+  const { canonicalUnit } = require("../utils/labExtract");
+  const cases = [
+    ["Jcumm", "/cumm"], ["Icumm", "/cumm"], ["Jfcumm", "/cumm"], ["/cumm", "/cumm"],
+    ["ulU/mL", "uIU/mL"], ["ulu/mL", "uIU/mL"], ["uIU/mL", "uIU/mL"], ["µIU/mL", "µIU/mL"],
+    ["mg/dL", "mg/dL"], ["mgjdL", "mg/dL"], ["mg/dl", "mg/dL"], ["g/dL", "g/dL"], ["g/L", "g/L"], ["mg/L", "mg/L"],
+    ["IU/L", "IU/L"], ["lU/L", "IU/L"], ["U/L", "U/L"], ["ng/mL", "ng/mL"], ["pg/mL", "pg/mL"], ["%", "%"],
+    ["million/cumm", "million/cumm"], ["mi1lion/cumm", "million/cumm"],
+    ["parsecs", "parsecs"], ["xyz/abc", "xyz/abc"]            // not a known unit: untouched
+  ];
+  for (const [printed, expected] of cases) assert.strictEqual(canonicalUnit(printed), expected, printed);
+  // short units are never fuzzy-matched: "g/L" and "mg/L" are different things
+  assert.strictEqual(canonicalUnit("g/L"), "g/L");
+  assert.strictEqual(canonicalUnit("mg/L"), "mg/L");
+});
+
+test("validateRows: garbled units are repaired when the report supports them, invented units are still dropped", () => {
+  const src = "Total Leucocyte Count 11200 Jfcumm 4000 - 11000\nTSH 2.8 ulu/mL 0.4 - 4.0\nTriglycerides 175 mg/dL < 150";
+  const { rows } = validateRows(
+    [
+      { testName: "Total Leucocyte Count", resultValue: "11200", unit: "Jfcumm", referenceRange: "4000 - 11000" },   // pattern-style: as printed
+      { testName: "Total Leucocyte Count", resultValue: "11200", unit: "/cumm", referenceRange: "4000 - 11000" },    // AI-style: already repaired
+      { testName: "TSH", resultValue: "2.8", unit: "uIU/mL", referenceRange: "0.4 - 4.0" },
+      { testName: "Triglycerides", resultValue: "175", unit: "mmol/L", referenceRange: "< 150" }                      // not in the report
+    ],
+    src
+  );
+  assert.deepStrictEqual(rows.map((r) => r.unit), ["/cumm", "/cumm"].slice(0, rows.length - 2).concat(["uIU/mL", ""]));
+  assert.strictEqual(rows[0].unit, "/cumm");
+  assert.strictEqual(rows.find((r) => r.testName === "Triglycerides").unit, "");
+});
+
+test("the model prompt allows fixing look-alike letters in names/units but never digits", () => {
+  const { SYSTEM_PROMPT } = require("../utils/labExtract");
+  assert.match(SYSTEM_PROMPT, /Never change a digit or a decimal point/);
+  assert.match(SYSTEM_PROMPT, /HbAlc/);
+});
+
+test("canonicalName fixes OCR look-alikes in common test names and leaves everything else alone", () => {
+  const { canonicalName } = require("../utils/labExtract");
+  const cases = [
+    ["HbAlc", "HbA1c"], ["HbA1c", "HbA1c"], ["Vitamin Bl2", "Vitamin B12"], ["Albumln", "Albumin"],
+    ["Tota| Cholesterol", "Total Cholesterol"], ["HDL Cholestero1", "HDL Cholesterol"], ["TSH", "TSH"],
+    ["Haemoglobin (Hb)", "Haemoglobin (Hb)"],   // a different spelling is not an OCR error: untouched
+    ["Hemoglobin", "Hemoglobin"], ["Haemoglobin", "Haemoglobin"],   // both spellings are on the list, neither is rewritten into the other
+    ["Lipoprotein (a)", "Lipoprotein (a)"], ["Unknown Marker X", "Unknown Marker X"]
+  ];
+  for (const [printed, expected] of cases) assert.strictEqual(canonicalName(printed), expected, printed);
+});
+
+test("rangeSuspicious catches the lost-decimal-point pattern without flagging normal ranges", () => {
+  const { rangeSuspicious } = require("../utils/labExtract");
+  for (const bad of ["0.7-13", "0.7 - 13", "07-13", "04-40", "04-4.0", "007 - 1.3"]) assert.strictEqual(rangeSuspicious(bad), true, bad);
+  for (const ok of ["0.7 - 1.3", "0.7-1.3", "13.0-17.0", "13.0 - 17.0", "4000 - 11000", "70-99", "< 200", "> 40", "0.4-4.0", "0.4 - 4.0", "30-100", "211 - 911", "4.5 - 5.5", "4.5 - 11", "0 - 5", "", "see note"]) {
+    assert.strictEqual(rangeSuspicious(ok), false, ok);
+  }
+});
+
+test("validateRows: a suspicious range gets a 'Check' tag and no status; HbAlc is spelled HbA1c", () => {
+  const src = "HbAlc 6.1 % < 5.7\nSerum Creatinine 0.9 mg/dL 0.7-13\nTSH 2.8 uIU/mL 0.4-4.0";
+  const { rows } = validateRows(
+    [
+      { testName: "HbAlc", resultValue: "6.1", unit: "%", referenceRange: "< 5.7" },
+      { testName: "Serum Creatinine", resultValue: "0.9", unit: "mg/dL", referenceRange: "0.7-13" },
+      { testName: "TSH", resultValue: "2.8", unit: "uIU/mL", referenceRange: "0.4-4.0" }
+    ],
+    src
+  );
+  assert.deepStrictEqual(rows.map((r) => [r.testName, r.verified, r.status]), [["HbA1c", true, "high"], ["Serum Creatinine", false, null], ["TSH", true, "normal"]]);
+  assert.strictEqual(rows[1].referenceRange, "0.7-13"); // kept, so the person can correct it
+});
