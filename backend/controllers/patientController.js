@@ -1,16 +1,5 @@
 const Patient = require("../models/Patient");
 
-// ✅ GET ALL PATIENTS
-const getAllPatients = async (req, res) => {
-  try {
-    const patients = await Patient.find();
-    res.json(patients);
-  } catch (err) {
-    console.error("❌ GET ALL PATIENTS ERROR:", err);
-    res.status(500).json({ message: err.message || "Server error ❌" });
-  }
-};
-
 // ✅ GET PATIENT BY AADHAAR
 const getPatientById = async (req, res) => {
   try {
@@ -25,29 +14,6 @@ const getPatientById = async (req, res) => {
     res.json(patient);
   } catch (err) {
     console.error("❌ GET PATIENT ERROR:", err);
-    res.status(500).json({ message: err.message || "Server error ❌" });
-  }
-};
-
-// ✅ ADD NEW PATIENT (used outside the register flow, e.g. admin add)
-const addPatient = async (req, res) => {
-  try {
-    const { name, aadhaar_id, mobile, email, address, dob } = req.body;
-
-    const exists = await Patient.findOne({ aadhaar_id });
-    if (exists) {
-      return res.status(400).json({ message: "Patient already exists ❌" });
-    }
-
-    const newPatient = new Patient({ name, aadhaar_id, mobile, email, address, dob });
-    await newPatient.save();
-
-    res.status(201).json({
-      message: "Patient added successfully ✅",
-      patient: newPatient
-    });
-  } catch (err) {
-    console.error("❌ ADD PATIENT ERROR:", err);
     res.status(500).json({ message: err.message || "Server error ❌" });
   }
 };
@@ -82,8 +48,6 @@ const updatePatient = async (req, res) => {
 };
 
 module.exports = {
-  getAllPatients,
   getPatientById,
-  addPatient,
   updatePatient
 };

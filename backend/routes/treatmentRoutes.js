@@ -1,19 +1,23 @@
 const express = require("express");
 const router = express.Router();
 
+const { addTreatment, getTreatments, deleteTreatment } = require("../controllers/treatmentController");
 const {
-  addTreatment,
-  getTreatments,
-  deleteTreatment
-} = require("../controllers/treatmentController");
+  requireAuth,
+  requireRole,
+  requirePatientAccess,
+  audit,
+  fromBody,
+  fromParams
+} = require("../middleware/auth");
 
-// ✅ Add treatment
-router.post("/", addTreatment);
+// ✅ Add treatment (patient for themselves, or a doctor the patient has approved)
+router.post("/", requireAuth, requirePatientAccess(fromBody), audit("add_treatment"), addTreatment);
 
 // ✅ Get treatments
-router.get("/:aadhaar", getTreatments);
+router.get("/:aadhaar", requireAuth, requirePatientAccess(fromParams), audit("view_record"), getTreatments);
 
-// ✅ Delete treatment
-router.delete("/:id", deleteTreatment);
+// ✅ Delete treatment (patient, own records only)
+router.delete("/:id", requireAuth, requireRole("patient"), deleteTreatment);
 
 module.exports = router;

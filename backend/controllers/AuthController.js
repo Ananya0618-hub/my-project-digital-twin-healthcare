@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Patient = require("../models/Patient");
 const { isVerified } = require("../utils/verificationStore");
+const { JWT_SECRET } = require("../config/jwt");
 
 // ================= REGISTER =================
 exports.register = async (req, res) => {
@@ -121,9 +122,10 @@ exports.login = async (req, res) => {
     const token = jwt.sign(
       {
         id: user._id,
-        aadhaar: user.aadhaar
+        aadhaar: user.aadhaar,
+        role: "patient"
       },
-      "secret123",
+      JWT_SECRET,
       { expiresIn: "1d" }
     );
 

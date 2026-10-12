@@ -5,6 +5,7 @@ const LabResult = require("../models/LabResult");
 // Sandbox.co.in was for the KYC Accelerator project. Not production data;
 // HAPI regularly purges and reloads this server with fixed synthetic test data.
 const FHIR_BASE = "https://hapi.fhir.org/baseR4";
+const SANDBOX_LABEL = "HAPI FHIR sandbox (synthetic)";
 
 async function fetchFhir(url) {
   const res = await fetch(url, { headers: { Accept: "application/fhir+json" } });
@@ -21,11 +22,8 @@ function deriveStatus(value, low, high) {
 
 exports.importFromFhirSandbox = async (req, res) => {
   try {
-    const { aadhaar } = req.body;
-
-    if (!aadhaar) {
-      return res.status(400).json({ message: "aadhaar is required ❌" });
-    }
+    // Route middleware has already verified this is the patient's own Aadhaar.
+    const aadhaar = req.targetAadhaar;
 
     let conditions = [];
     let observations = [];
@@ -73,10 +71,14 @@ exports.importFromFhirSandbox = async (req, res) => {
     const savedTreatments = [];
     for (const c of conditions.slice(0, 3)) {
       const diagnosis = c.code?.text || c.code?.coding?.[0]?.display || "Unspecified condition";
+      const when = new Date(c.recordedDate || c.onsetDateTime || "");
       const treatment = new Treatment({
         aadhaar,
         diagnosis,
-        medication: "Not specified in source FHIR record"
+        medication: "Not specified in source FHIR record",
+        date: Number.isNaN(when.getTime()) || when > new Date() ? new Date() : when,
+        hospital: SANDBOX_LABEL,
+        source: "fhir-sandbox"
       });
       await treatment.save();
       savedTreatments.push(treatment);
@@ -93,13 +95,19 @@ exports.importFromFhirSandbox = async (req, res) => {
         low !== undefined && high !== undefined ? `${low} - ${high}` : "";
       const status = deriveStatus(value, low, high);
 
+      const when = new Date(o.effectiveDateTime || o.issued || "");
       const labResult = new LabResult({
         aadhaar,
         testName,
         resultValue: String(value),
         unit,
         referenceRange,
-        status
+        refLow: low !== undefined && high !== undefined ? low : null,
+        refHigh: low !== undefined && high !== undefined ? high : null,
+        status,
+        date: Number.isNaN(when.getTime()) || when > new Date() ? new Date() : when,
+        hospital: SANDBOX_LABEL,
+        source: "fhir-sandbox"
       });
       await labResult.save();
       savedLabs.push(labResult);

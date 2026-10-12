@@ -1,38 +1,74 @@
 const Treatment = require("../models/Treatment");
+const { getDoctorName } = require("../utils/doctors");
+const { clean, ensureHospital } = require("../utils/hospitals");
+const { parseRecordDate, sortByRecordDate } = require("../utils/recordInput");
 
 // ✅ ADD TREATMENT
+// Access to req.body.aadhaar is already checked by the route middleware.
+// Attribution comes from the logged-in user, never from the request body.
 exports.addTreatment = async (req, res) => {
   try {
-    const newTreatment = new Treatment(req.body);
+    const diagnosis = String(req.body.diagnosis || "").trim();
+    const medication = String(req.body.medication || "").trim();
+    if (!diagnosis || !medication) {
+      return res.status(400).json({ message: "Diagnosis and medication are required ❌" });
+    }
+
+    const { date, error } = parseRecordDate(req.body.date);
+    if (error) return res.status(400).json({ message: error });
+
+    const isDoctor = req.user.role === "doctor";
+    // only doctors add to the shared hospital list; patients' free text stays on their own record
+    const hospital = isDoctor ? await ensureHospital(req.body.hospital) : clean(req.body.hospital);
+
+    const newTreatment = new Treatment({
+      aadhaar: req.targetAadhaar,
+      diagnosis,
+      medication,
+      ...(date ? { date } : {}),
+      hospital,
+      source: isDoctor ? "doctor" : "patient",
+      ...(isDoctor
+        ? { doctorRegId: req.user.doctorRegId, doctorName: await getDoctorName(req.user.doctorRegId) }
+        : {})
+    });
+
     await newTreatment.save();
-    res.json(newTreatment);
+    res.status(201).json(newTreatment);
   } catch (err) {
+    console.error("❌ ADD TREATMENT ERROR:", err);
     res.status(500).json({ error: "Failed to add" });
   }
 };
 
-// ✅ GET TREATMENTS
+// ✅ GET TREATMENTS (newest first)
 exports.getTreatments = async (req, res) => {
   try {
-    const data = await Treatment.find({
-      aadhaar: req.params.aadhaar
-    });
-    res.json(data);
+    const data = await Treatment.find({ aadhaar: req.targetAadhaar });
+    res.json(sortByRecordDate(data, -1));
   } catch (err) {
+    console.error("❌ GET TREATMENTS ERROR:", err);
     res.status(500).json({ error: "Failed to fetch" });
   }
 };
 
-// ✅ DELETE TREATMENT
+// ✅ DELETE TREATMENT — patients only, own records only. Entries written by a
+// doctor are part of the medical record and can't be deleted by the patient.
 exports.deleteTreatment = async (req, res) => {
   try {
-    console.log("DELETE ID:", req.params.id);
+    const doc = await Treatment.findById(req.params.id);
+    if (!doc || doc.aadhaar !== req.user.aadhaar) {
+      return res.status(404).json({ message: "Record not found ❌" });
+    }
+    if (doc.source === "doctor") {
+      return res.status(403).json({ message: "Records added by a doctor can't be deleted ❌" });
+    }
 
     await Treatment.findByIdAndDelete(req.params.id);
-
     res.json({ message: "Deleted successfully ✅" });
   } catch (err) {
-    console.log(err);
+    if (err && err.name === "CastError") return res.status(404).json({ message: "Record not found ❌" });
+    console.error("❌ DELETE TREATMENT ERROR:", err);
     res.status(500).json({ error: "Delete failed ❌" });
   }
 };

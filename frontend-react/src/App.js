@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
-import { Bar } from "react-chartjs-2";
+import { Bar, Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  BarElement
+  BarElement,
+  LineElement,
+  PointElement,
+  Tooltip,
+  Legend
 } from "chart.js";
 import {
   Building2,
@@ -28,20 +32,213 @@ import {
   Sparkles,
   Loader2,
   CloudDownload,
-  ShieldCheck
+  ShieldCheck,
+  History,
+  Download,
+  Lock,
+  UserCheck,
+  Check,
+  X,
+  TrendingUp
 } from "lucide-react";
 import "./App.css";
 
-ChartJS.register(CategoryScale, LinearScale, BarElement);
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend);
 
 // Relative path — works both in local dev (CRA proxy) and in production,
 // where Nginx serves this app and proxies /api to the backend on the
 // same domain. No hardcoded host, no CORS headaches.
 const API = "/api";
 
+// Which login the UI is currently acting as. App() sets this on every render so
+// authFetch below picks the matching token.
+let currentRole = "patient";
+
+// fetch() that sends the logged-in user's token. A 401 means the session has
+// expired (or the token is no good): clear it and go back to the login screen.
+const authFetch = async (url, opts = {}) => {
+  const token = localStorage.getItem(currentRole === "doctor" ? "doctorToken" : "token");
+  const res = await fetch(url, {
+    ...opts,
+    headers: { ...(opts.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+  });
+  if (res.status === 401) {
+    localStorage.clear();
+    window.location.reload();
+  }
+  return res;
+};
+
+const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "";
+const fmtDateTime = (d) =>
+  d
+    ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "";
+const recordDate = (rec) => rec.date || rec.createdAt || null;
+const drName = (name) => (name ? `Dr. ${name.replace(/^dr\.?\s+/i, "")}` : "");
+const todayLocal = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
+
+const SOURCE_LABEL = { doctor: "Doctor", patient: "Self-reported", "fhir-sandbox": "FHIR sandbox" };
+const ACCESS_ACTIONS = {
+  view_record: "viewed your record",
+  add_treatment: "added a treatment",
+  add_lab: "added a lab result",
+  ai_summary: "generated an AI summary",
+  fhir_export: "exported your data (FHIR)"
+};
+
+// date · hospital · doctor, plus where the record came from
+function RecordMeta({ rec, withDate = true }) {
+  const source = rec.source || "patient";
+  const bits = [withDate ? fmtDate(recordDate(rec)) : "", rec.hospital, drName(rec.doctorName)].filter(Boolean);
+  return (
+    <p className="record-meta">
+      {bits.join(" · ")}
+      <span className={`source-tag source-${source}`}>{SOURCE_LABEL[source] || source}</span>
+    </p>
+  );
+}
+
+// Treatments and lab results merged into one date-ordered list
+function Timeline({ treatments, labs }) {
+  const items = [
+    ...treatments.map((t) => ({ key: `t-${t._id}`, kind: "treatment", rec: t })),
+    ...labs.map((l) => ({ key: `l-${l._id}`, kind: "lab", rec: l }))
+  ].sort((a, b) => new Date(recordDate(b.rec) || 0) - new Date(recordDate(a.rec) || 0));
+
+  if (items.length === 0) return <div className="empty-state">Nothing on the timeline yet</div>;
+
+  return (
+    <div className="timeline">
+      {items.map(({ key, kind, rec }) => (
+        <div className="timeline-item" key={key}>
+          <div className={`timeline-dot ${kind === "lab" ? `dot-${rec.status}` : "dot-treatment"}`} />
+          <p className="timeline-date">{fmtDate(recordDate(rec))}</p>
+          {kind === "treatment" ? (
+            <>
+              <p className="treatment-diagnosis">{rec.diagnosis}</p>
+              <p className="treatment-medication">{rec.medication}</p>
+            </>
+          ) : (
+            <>
+              <p className="treatment-diagnosis">
+                {rec.testName}: {rec.resultValue} {rec.unit}
+                <span className={`status-badge status-${rec.status}`} style={{ marginLeft: 8 }}>{rec.status}</span>
+              </p>
+              {rec.referenceRange && <p className="treatment-medication">Reference: {rec.referenceRange}</p>}
+            </>
+          )}
+          <RecordMeta rec={rec} withDate={false} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Line chart per test (tests with 2+ numeric results), with the normal range
+// drawn as dashed lines when the reference range could be parsed.
+function LabTrends({ labs }) {
+  const [selected, setSelected] = useState("");
+
+  const groups = {};
+  labs.forEach((l) => {
+    const v = parseFloat(String(l.resultValue).replace(/,/g, ""));
+    const when = new Date(recordDate(l));
+    if (Number.isNaN(v) || Number.isNaN(when.getTime())) return;
+    const name = l.testName.trim();
+    (groups[name] = groups[name] || []).push({ ...l, v, when });
+  });
+
+  const names = Object.keys(groups).filter((n) => groups[n].length >= 2).sort();
+  const active = names.includes(selected) ? selected : names[0];
+
+  const heading = (
+    <h3 className="card-heading">
+      <TrendingUp size={17} color="var(--blue-600)" />
+      Lab Trends
+    </h3>
+  );
+
+  if (!active) {
+    return (
+      <div className="card">
+        {heading}
+        <div className="empty-state">Add two or more results for the same test to see a trend</div>
+      </div>
+    );
+  }
+
+  const pts = [...groups[active]].sort((a, b) => a.when - b.when);
+  const latest = pts[pts.length - 1];
+  const POINT_COLOR = { high: "#dc2626", low: "#d97706" };
+
+  const datasets = [
+    {
+      label: `${active}${latest.unit ? ` (${latest.unit})` : ""}`,
+      data: pts.map((p) => p.v),
+      borderColor: "#2563eb",
+      backgroundColor: "#2563eb",
+      tension: 0.25,
+      pointRadius: 5,
+      pointBackgroundColor: pts.map((p) => POINT_COLOR[p.status] || "#2563eb")
+    }
+  ];
+  const limitLine = (value, label) => ({
+    label,
+    data: pts.map(() => value),
+    borderColor: "#94a3b8",
+    borderDash: [6, 4],
+    borderWidth: 1.5,
+    pointRadius: 0
+  });
+  if (typeof latest.refHigh === "number") datasets.push(limitLine(latest.refHigh, "Upper limit"));
+  if (typeof latest.refLow === "number") datasets.push(limitLine(latest.refLow, "Lower limit"));
+
+  return (
+    <div className="card">
+      {heading}
+      <select className="input" value={active} onChange={(e) => setSelected(e.target.value)}>
+        {names.map((n) => (
+          <option key={n} value={n}>
+            {n} ({groups[n].length} results)
+          </option>
+        ))}
+      </select>
+      <div className="chart-wrap" style={{ marginTop: 16 }}>
+        <Line
+          data={{ labels: pts.map((p) => fmtDate(p.when)), datasets }}
+          options={{
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 2.2,
+            plugins: { legend: { display: datasets.length > 1, position: "bottom" } },
+            scales: { y: { grid: { color: "#eef2f7" } }, x: { grid: { display: false } } }
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Hospital names already used by doctors, offered as suggestions in the forms
+function HospitalOptions({ hospitals }) {
+  return (
+    <datalist id="hospital-options">
+      {hospitals.map((h) => (
+        <option key={h} value={h} />
+      ))}
+    </datalist>
+  );
+}
+
 function App() {
   // view: "login" | "register" | "app" | "doctorLogin" | "doctorRegister" | "doctorApp"
   const [view, setView] = useState("login");
+  currentRole = view === "doctorApp" ? "doctor" : "patient";
 
   // login fields
   const [aadhaar, setAadhaar] = useState("");
@@ -74,7 +271,7 @@ function App() {
   const [testValue, setTestValue] = useState("");
   const [testUnit, setTestUnit] = useState("");
   const [testRange, setTestRange] = useState("");
-  const [testStatus, setTestStatus] = useState("normal");
+  const [testStatus, setTestStatus] = useState("auto");
 
   // AI summary
   const [aiSummary, setAiSummary] = useState(null);
@@ -116,6 +313,32 @@ function App() {
   const [docSummary, setDocSummary] = useState(null);
   const [docSummaryLoading, setDocSummaryLoading] = useState(false);
   const [docSummaryError, setDocSummaryError] = useState(null);
+
+  // ===== Record attribution (hospital + date on treatments and labs) =====
+  const [hospitals, setHospitals] = useState([]);
+  const [tHospital, setTHospital] = useState("");
+  const [tDate, setTDate] = useState("");
+  const [testHospital, setTestHospital] = useState("");
+  const [testDate, setTestDate] = useState("");
+
+  // ===== Patient: who can see my records =====
+  const [consents, setConsents] = useState([]);
+  const [accessLog, setAccessLog] = useState([]);
+  const [accessBusy, setAccessBusy] = useState(false);
+
+  // ===== Doctor: access requests + recording for a patient =====
+  const [doctorTab, setDoctorTab] = useState("search"); // "search" | "mine"
+  const [consentNeeded, setConsentNeeded] = useState(null); // { aadhaar, status }
+  const [myPatients, setMyPatients] = useState([]);
+  const [docHospital, setDocHospital] = useState("");
+  const [docDate, setDocDate] = useState("");
+  const [docLabName, setDocLabName] = useState("");
+  const [docLabValue, setDocLabValue] = useState("");
+  const [docLabUnit, setDocLabUnit] = useState("");
+  const [docLabRange, setDocLabRange] = useState("");
+  const [docLabStatus, setDocLabStatus] = useState("auto");
+  const [docLabHospital, setDocLabHospital] = useState("");
+  const [docLabDate, setDocLabDate] = useState("");
 
   // AUTO LOGIN (doctor)
   useEffect(() => {
@@ -244,7 +467,7 @@ function App() {
   const loadTreatments = useCallback(() => {
     if (!aadhaar) return;
 
-    fetch(`${API}/treatments/${aadhaar}`)
+    authFetch(`${API}/treatments/${aadhaar}`)
       .then(res => res.json())
       .then(data => setTreatments(Array.isArray(data) ? data : []));
   }, [aadhaar]);
@@ -253,7 +476,7 @@ function App() {
   const loadProfile = useCallback(() => {
     if (!aadhaar) return;
 
-    fetch(`${API}/patients/${aadhaar}`)
+    authFetch(`${API}/patients/${aadhaar}`)
       .then(res => (res.ok ? res.json() : null))
       .then(data => setProfile(data))
       .catch(() => setProfile(null));
@@ -263,19 +486,63 @@ function App() {
   const loadLabResults = useCallback(() => {
     if (!aadhaar) return;
 
-    fetch(`${API}/labresults/${aadhaar}`)
+    authFetch(`${API}/labresults/${aadhaar}`)
       .then(res => (res.ok ? res.json() : []))
       .then(data => setLabResults(Array.isArray(data) ? data : []))
       .catch(() => setLabResults([]));
   }, [aadhaar]);
+
+  const loadHospitals = useCallback(() => {
+    authFetch(`${API}/hospitals`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setHospitals(Array.isArray(data) ? data : []))
+      .catch(() => setHospitals([]));
+  }, []);
+
+  const loadConsents = useCallback(() => {
+    authFetch(`${API}/consent/mine`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setConsents(Array.isArray(data) ? data : []))
+      .catch(() => setConsents([]));
+  }, []);
+
+  const loadAccessLog = useCallback(() => {
+    authFetch(`${API}/consent/audit`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setAccessLog(Array.isArray(data) ? data : []))
+      .catch(() => setAccessLog([]));
+  }, []);
+
+  const loadMyPatients = useCallback(() => {
+    authFetch(`${API}/consent/doctor/patients`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setMyPatients(Array.isArray(data) ? data : []))
+      .catch(() => setMyPatients([]));
+  }, []);
 
   useEffect(() => {
     if (view === "app") {
       loadTreatments();
       loadProfile();
       loadLabResults();
+      loadHospitals();
+      loadConsents(); // for the pending-requests badge
     }
-  }, [view, loadTreatments, loadProfile, loadLabResults]);
+  }, [view, loadTreatments, loadProfile, loadLabResults, loadHospitals, loadConsents]);
+
+  useEffect(() => {
+    if (view === "app" && activeTab === "access") {
+      loadConsents();
+      loadAccessLog();
+    }
+  }, [view, activeTab, loadConsents, loadAccessLog]);
+
+  useEffect(() => {
+    if (view === "doctorApp") {
+      loadHospitals();
+      loadMyPatients();
+    }
+  }, [view, loadHospitals, loadMyPatients]);
 
   // LOGIN
   const loginUser = async () => {
@@ -370,39 +637,51 @@ function App() {
     }
   };
 
-  // SAVE TREATMENT
+  // SAVE TREATMENT (self-reported)
   const saveTreatment = async () => {
     if (!diagnosis.trim() || !medication.trim()) {
       alert("Please fill both fields ❌");
       return;
     }
 
-    await fetch(`${API}/treatments`, {
+    const res = await authFetch(`${API}/treatments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ aadhaar, diagnosis, medication })
+      body: JSON.stringify({ aadhaar, diagnosis, medication, hospital: tHospital, date: tDate || undefined })
     });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.message || "Couldn't save the treatment ❌");
+      return;
+    }
 
     setDiagnosis("");
     setMedication("");
+    setTHospital("");
+    setTDate("");
     loadTreatments();
     setActiveTab("patients");
   };
 
   // DELETE TREATMENT
   const deleteTreatment = async (id) => {
-    await fetch(`${API}/treatments/${id}`, { method: "DELETE" });
+    const res = await authFetch(`${API}/treatments/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.message || "Couldn't delete ❌");
+    }
     loadTreatments();
   };
 
-  // SAVE LAB RESULT
+  // SAVE LAB RESULT — status "auto" lets the server work it out from the reference range
   const saveLabResult = async () => {
     if (!testName.trim() || !testValue.trim()) {
       alert("Please fill in at least the test name and value ❌");
       return;
     }
 
-    await fetch(`${API}/labresults`, {
+    const res = await authFetch(`${API}/labresults`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -411,21 +690,72 @@ function App() {
         resultValue: testValue,
         unit: testUnit,
         referenceRange: testRange,
-        status: testStatus
+        status: testStatus,
+        hospital: testHospital,
+        date: testDate || undefined
       })
     });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.message || "Couldn't save the lab result ❌");
+      return;
+    }
 
     setTestName("");
     setTestValue("");
     setTestUnit("");
     setTestRange("");
-    setTestStatus("normal");
+    setTestStatus("auto");
+    setTestHospital("");
+    setTestDate("");
     loadLabResults();
   };
 
   const deleteLabResult = async (id) => {
-    await fetch(`${API}/labresults/${id}`, { method: "DELETE" });
+    const res = await authFetch(`${API}/labresults/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.message || "Couldn't delete ❌");
+    }
     loadLabResults();
+  };
+
+  // PATIENT: approve / deny / revoke a doctor's access
+  const respondConsent = async (doctorRegId, decision) => {
+    setAccessBusy(true);
+    try {
+      const res = await authFetch(`${API}/consent/respond`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doctorRegId, decision })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || "Couldn't update access ❌");
+      }
+      loadConsents();
+    } finally {
+      setAccessBusy(false);
+    }
+  };
+
+  // FHIR export — a fetch with the token, then saved as a file
+  const downloadFhir = async (targetAadhaar) => {
+    const res = await authFetch(`${API}/fhir/export/${targetAadhaar}`);
+    if (!res.ok) {
+      alert("Couldn't export the record ❌");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `healthmirror-fhir-${targetAadhaar.slice(-4)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   // AI SUMMARY
@@ -435,7 +765,7 @@ function App() {
     setAiSummary(null);
 
     try {
-      const res = await fetch(`${API}/ai/summarize`, {
+      const res = await authFetch(`${API}/ai/summarize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ aadhaar })
@@ -463,7 +793,7 @@ function App() {
     setFhirResult(null);
 
     try {
-      const res = await fetch(`${API}/fhir/import`, {
+      const res = await authFetch(`${API}/fhir/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ aadhaar })
@@ -580,25 +910,41 @@ function App() {
     setFoundLabs([]);
     setSearchAadhaar("");
     setDocSummary(null);
+    setConsentNeeded(null);
+    setMyPatients([]);
+    setDoctorTab("search");
     setView("login");
   };
 
-  // DOCTOR: LOOK UP A PATIENT BY AADHAAR
-  const lookupPatient = async () => {
-    if (!searchAadhaar.trim()) {
+  // DOCTOR: LOOK UP A PATIENT BY AADHAAR (needs the patient's approval)
+  const lookupPatient = async (override) => {
+    // onClick passes an event, openPatient passes an Aadhaar string
+    const target = (typeof override === "string" ? override : searchAadhaar).trim();
+    if (!target) {
       alert("Enter a patient's Aadhaar number ❌");
       return;
     }
 
     setLookupLoading(true);
     setLookupError(null);
+    setConsentNeeded(null);
     setFoundPatient(null);
     setFoundTreatments([]);
     setFoundLabs([]);
     setDocSummary(null);
 
     try {
-      const profileRes = await fetch(`${API}/patients/${searchAadhaar}`);
+      const profileRes = await authFetch(`${API}/patients/${target}`);
+
+      if (profileRes.status === 403) {
+        const body = await profileRes.json().catch(() => ({}));
+        if (body.code === "CONSENT_REQUIRED") {
+          setConsentNeeded({ aadhaar: target, status: body.consentStatus || "none" });
+        } else {
+          setLookupError(body.message || "Access denied ❌");
+        }
+        return;
+      }
       if (!profileRes.ok) {
         setLookupError("No patient found with that Aadhaar ❌");
         return;
@@ -607,8 +953,8 @@ function App() {
       setFoundPatient(profile);
 
       const [treatRes, labRes] = await Promise.all([
-        fetch(`${API}/treatments/${searchAadhaar}`),
-        fetch(`${API}/labresults/${searchAadhaar}`)
+        authFetch(`${API}/treatments/${target}`),
+        authFetch(`${API}/labresults/${target}`)
       ]);
       setFoundTreatments(treatRes.ok ? await treatRes.json() : []);
       setFoundLabs(labRes.ok ? await labRes.json() : []);
@@ -619,11 +965,38 @@ function App() {
     }
   };
 
+  // DOCTOR: ask the patient for access
+  const requestAccess = async () => {
+    if (!consentNeeded) return;
+    setLookupError(null);
+
+    const res = await authFetch(`${API}/consent/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ patientAadhaar: consentNeeded.aadhaar })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setConsentNeeded(null);
+      setLookupError(data.message || "Couldn't send the request ❌");
+      return;
+    }
+    setConsentNeeded({ aadhaar: consentNeeded.aadhaar, status: data.status });
+  };
+
+  // DOCTOR: open one of the patients who've approved access
+  const openPatient = (patientAadhaar) => {
+    setSearchAadhaar(patientAadhaar);
+    setDoctorTab("search");
+    lookupPatient(patientAadhaar);
+  };
+
   const refreshFoundPatientRecords = async () => {
     if (!foundPatient) return;
     const [treatRes, labRes] = await Promise.all([
-      fetch(`${API}/treatments/${foundPatient.aadhaar_id}`),
-      fetch(`${API}/labresults/${foundPatient.aadhaar_id}`)
+      authFetch(`${API}/treatments/${foundPatient.aadhaar_id}`),
+      authFetch(`${API}/labresults/${foundPatient.aadhaar_id}`)
     ]);
     setFoundTreatments(treatRes.ok ? await treatRes.json() : []);
     setFoundLabs(labRes.ok ? await labRes.json() : []);
@@ -636,19 +1009,67 @@ function App() {
       return;
     }
 
-    await fetch(`${API}/treatments`, {
+    const res = await authFetch(`${API}/treatments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         aadhaar: foundPatient.aadhaar_id,
         diagnosis: docDiagnosis,
-        medication: docMedication
+        medication: docMedication,
+        hospital: docHospital,
+        date: docDate || undefined
       })
     });
 
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.message || "Couldn't save the treatment ❌");
+      return;
+    }
+
     setDocDiagnosis("");
     setDocMedication("");
+    setDocDate("");
     refreshFoundPatientRecords();
+    loadHospitals();
+  };
+
+  // DOCTOR: ADD A LAB RESULT FOR THE FOUND PATIENT
+  const doctorSaveLab = async () => {
+    if (!docLabName.trim() || !docLabValue.trim()) {
+      alert("Please fill in at least the test name and value ❌");
+      return;
+    }
+
+    const res = await authFetch(`${API}/labresults`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        aadhaar: foundPatient.aadhaar_id,
+        testName: docLabName,
+        resultValue: docLabValue,
+        unit: docLabUnit,
+        referenceRange: docLabRange,
+        status: docLabStatus,
+        hospital: docLabHospital,
+        date: docLabDate || undefined
+      })
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.message || "Couldn't save the lab result ❌");
+      return;
+    }
+
+    setDocLabName("");
+    setDocLabValue("");
+    setDocLabUnit("");
+    setDocLabRange("");
+    setDocLabStatus("auto");
+    setDocLabDate("");
+    refreshFoundPatientRecords();
+    loadHospitals();
   };
 
   // DOCTOR: AI SUMMARY FOR THE FOUND PATIENT
@@ -660,7 +1081,7 @@ function App() {
     setDocSummary(null);
 
     try {
-      const res = await fetch(`${API}/ai/summarize`, {
+      const res = await authFetch(`${API}/ai/summarize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ aadhaar: foundPatient.aadhaar_id })
@@ -689,6 +1110,9 @@ function App() {
     setTreatments([]);
     setLabResults([]);
     setAiSummary(null);
+    setConsents([]);
+    setAccessLog([]);
+    setActiveTab("dashboard");
     setView("login");
   };
 
@@ -1117,9 +1541,13 @@ function App() {
             HealthMirror
           </div>
 
-          <div className="nav-item active">
+          <div className={`nav-item ${doctorTab === "search" ? "active" : ""}`} onClick={() => setDoctorTab("search")}>
             <Search size={17} />
             Search Patient
+          </div>
+          <div className={`nav-item ${doctorTab === "mine" ? "active" : ""}`} onClick={() => { setDoctorTab("mine"); loadMyPatients(); }}>
+            <UserCheck size={17} />
+            My Patients
           </div>
 
           <div className="sidebar-spacer" />
@@ -1135,167 +1563,270 @@ function App() {
         </div>
 
         <div className="main">
-          <div className="card">
-            <h3 className="card-heading">
-              <Search size={17} color="var(--blue-600)" />
-              Search Patient by Aadhaar
-            </h3>
+          <HospitalOptions hospitals={hospitals} />
 
-            <div className="search-wrap">
-              <Search size={16} />
-              <input
-                className="input"
-                placeholder="Enter 12-digit Aadhaar"
-                value={searchAadhaar}
-                onChange={e => setSearchAadhaar(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && lookupPatient()}
-              />
+          {/* MY PATIENTS */}
+          {doctorTab === "mine" && (
+            <div className="card">
+              <h3 className="card-heading">
+                <UserCheck size={17} color="var(--blue-600)" />
+                My Patients
+              </h3>
+              <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -6, marginBottom: 18 }}>
+                Patients who have approved your access.
+              </p>
+
+              {myPatients.length === 0 ? (
+                <div className="empty-state">No approved patients yet — search for a patient and request access</div>
+              ) : (
+                myPatients.map((p) => (
+                  <div className="consent-row" key={p.patientAadhaar}>
+                    <div className="consent-info">
+                      <p className="treatment-diagnosis">{p.patientName || "Patient"}</p>
+                      <p className="treatment-medication">
+                        Aadhaar ••••{p.patientAadhaar.slice(-4)} · access since {fmtDate(p.since)}
+                      </p>
+                    </div>
+                    <button className="btn btn-primary btn-sm" onClick={() => openPatient(p.patientAadhaar)}>
+                      Open
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
+          )}
 
-            <button className="btn btn-primary" onClick={lookupPatient} disabled={lookupLoading}>
-              {lookupLoading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
-              {lookupLoading ? "Searching..." : "Search"}
-            </button>
-
-            {lookupError && <div className="ai-error">{lookupError}</div>}
-          </div>
-
-          {foundPatient && (
+          {/* SEARCH + PATIENT RECORD */}
+          {doctorTab === "search" && (
             <>
               <div className="card">
-                <div className="hero-top">
-                  <div className="avatar-circle" style={{ background: "var(--teal-600)" }}>
-                    {(foundPatient.name || "?").charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="detail-label" style={{ margin: 0 }}>Patient</p>
-                    <h2 style={{ margin: "2px 0 0", fontSize: 20 }}>{foundPatient.name}</h2>
-                  </div>
+                <h3 className="card-heading">
+                  <Search size={17} color="var(--blue-600)" />
+                  Search Patient by Aadhaar
+                </h3>
+
+                <div className="search-wrap">
+                  <Search size={16} />
+                  <input
+                    className="input"
+                    placeholder="Enter 12-digit Aadhaar"
+                    value={searchAadhaar}
+                    onChange={e => setSearchAadhaar(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && lookupPatient()}
+                  />
                 </div>
 
-                <div style={{ marginTop: 18 }}>
-                  {foundPatient.dob && (
-                    <div className="detail-row">
-                      <Calendar size={16} className="detail-icon" />
-                      <div>
-                        <p className="detail-label">Date of Birth</p>
-                        <p className="detail-value">{foundPatient.dob}</p>
-                      </div>
-                    </div>
-                  )}
-                  {foundPatient.mobile && (
-                    <div className="detail-row">
-                      <Phone size={16} className="detail-icon" />
-                      <div>
-                        <p className="detail-label">Mobile</p>
-                        <p className="detail-value">{foundPatient.mobile}</p>
-                      </div>
-                    </div>
-                  )}
-                  {foundPatient.email && (
-                    <div className="detail-row">
-                      <Mail size={16} className="detail-icon" />
-                      <div>
-                        <p className="detail-label">Email</p>
-                        <p className="detail-value">{foundPatient.email}</p>
-                      </div>
-                    </div>
-                  )}
-                  {foundPatient.address && (
-                    <div className="detail-row">
-                      <MapPin size={16} className="detail-icon" />
-                      <div>
-                        <p className="detail-label">Address</p>
-                        <p className="detail-value">{foundPatient.address}</p>
-                      </div>
-                    </div>
+                <button className="btn btn-primary" onClick={lookupPatient} disabled={lookupLoading}>
+                  {lookupLoading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
+                  {lookupLoading ? "Searching..." : "Search"}
+                </button>
+
+                {lookupError && <div className="ai-error">{lookupError}</div>}
+              </div>
+
+              {consentNeeded && (
+                <div className="card">
+                  <h3 className="card-heading">
+                    <Lock size={17} color="var(--blue-600)" />
+                    Patient approval needed
+                  </h3>
+
+                  {consentNeeded.status === "pending" ? (
+                    <p style={{ color: "var(--ink-500)", fontSize: 13.5, margin: 0 }}>
+                      Your request is waiting for the patient. Once they approve it in their Access &amp; Privacy
+                      tab, search again to open the record.
+                    </p>
+                  ) : (
+                    <>
+                      <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: 0, marginBottom: 16 }}>
+                        {consentNeeded.status === "denied"
+                          ? "This patient denied your earlier request. "
+                          : consentNeeded.status === "revoked"
+                          ? "This patient has withdrawn your access. "
+                          : "You don't have access to this patient's record yet. "}
+                        Send a request — they'll see it in their Access &amp; Privacy tab and can approve or deny it.
+                      </p>
+                      <button className="btn btn-primary" onClick={requestAccess}>
+                        <Lock size={16} />
+                        Request access
+                      </button>
+                    </>
                   )}
                 </div>
-              </div>
+              )}
 
-              <div className="card">
-                <h3 className="card-heading">
-                  <FileText size={17} color="var(--blue-600)" />
-                  Treatment History
-                </h3>
-                {foundTreatments.length === 0 ? (
-                  <div className="empty-state">No treatments recorded yet</div>
-                ) : (
-                  foundTreatments.map(t => (
-                    <div className="treatment-item" key={t._id}>
-                      <div className="treatment-icon">
-                        <Stethoscope size={17} />
+              {foundPatient && (
+                <>
+                  <div className="card">
+                    <div className="hero-top">
+                      <div className="avatar-circle" style={{ background: "var(--teal-600)" }}>
+                        {(foundPatient.name || "?").charAt(0).toUpperCase()}
                       </div>
-                      <div className="treatment-body">
-                        <p className="treatment-diagnosis">{t.diagnosis}</p>
-                        <p className="treatment-medication">{t.medication}</p>
+                      <div>
+                        <p className="detail-label" style={{ margin: 0 }}>Patient</p>
+                        <h2 style={{ margin: "2px 0 0", fontSize: 20 }}>{foundPatient.name}</h2>
                       </div>
+                      <button
+                        className="btn btn-outline btn-sm"
+                        style={{ marginLeft: "auto" }}
+                        onClick={() => downloadFhir(foundPatient.aadhaar_id)}
+                      >
+                        <Download size={14} />
+                        Export FHIR
+                      </button>
                     </div>
-                  ))
-                )}
-              </div>
 
-              <div className="card">
-                <h3 className="card-heading">
-                  <TestTube2 size={17} color="var(--blue-600)" />
-                  Lab Results
-                </h3>
-                {foundLabs.length === 0 ? (
-                  <div className="empty-state">No lab results recorded yet</div>
-                ) : (
-                  foundLabs.map(l => (
-                    <div className="lab-item" key={l._id}>
-                      <div className="lab-item-main">
-                        <p className="treatment-diagnosis">{l.testName}</p>
-                        <p className="treatment-medication">
-                          {l.resultValue} {l.unit} {l.referenceRange ? `· Ref: ${l.referenceRange}` : ""}
-                        </p>
-                      </div>
-                      <span className={`status-badge status-${l.status}`}>{l.status}</span>
+                    <div style={{ marginTop: 18 }}>
+                      {foundPatient.dob && (
+                        <div className="detail-row">
+                          <Calendar size={16} className="detail-icon" />
+                          <div>
+                            <p className="detail-label">Date of Birth</p>
+                            <p className="detail-value">{foundPatient.dob}</p>
+                          </div>
+                        </div>
+                      )}
+                      {foundPatient.mobile && (
+                        <div className="detail-row">
+                          <Phone size={16} className="detail-icon" />
+                          <div>
+                            <p className="detail-label">Mobile</p>
+                            <p className="detail-value">{foundPatient.mobile}</p>
+                          </div>
+                        </div>
+                      )}
+                      {foundPatient.email && (
+                        <div className="detail-row">
+                          <Mail size={16} className="detail-icon" />
+                          <div>
+                            <p className="detail-label">Email</p>
+                            <p className="detail-value">{foundPatient.email}</p>
+                          </div>
+                        </div>
+                      )}
+                      {foundPatient.address && (
+                        <div className="detail-row">
+                          <MapPin size={16} className="detail-icon" />
+                          <div>
+                            <p className="detail-label">Address</p>
+                            <p className="detail-value">{foundPatient.address}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))
-                )}
-              </div>
-
-              <div className="card">
-                <h3 className="card-heading">
-                  <FlaskConical size={17} color="var(--blue-600)" />
-                  Add Treatment for This Patient
-                </h3>
-
-                <label className="field-label">Diagnosis</label>
-                <input className="input" placeholder="e.g. Fever" value={docDiagnosis} onChange={e => setDocDiagnosis(e.target.value)} />
-
-                <label className="field-label">Medication</label>
-                <input className="input" placeholder="e.g. Crocin" value={docMedication} onChange={e => setDocMedication(e.target.value)} />
-
-                <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={doctorSaveTreatment}>
-                  <PlusCircle size={16} />
-                  Save Treatment
-                </button>
-              </div>
-
-              <div className="card">
-                <h3 className="card-heading">
-                  <Sparkles size={17} color="var(--blue-600)" />
-                  AI Summary for This Patient
-                </h3>
-
-                <button className="btn btn-primary" onClick={doctorSummarize} disabled={docSummaryLoading}>
-                  {docSummaryLoading ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
-                  {docSummaryLoading ? "Summarizing..." : "Summarize Patient History"}
-                </button>
-
-                {docSummaryError && <div className="ai-error">{docSummaryError}</div>}
-
-                {docSummary && (
-                  <div className="ai-summary-box">
-                    {docSummary.split("\n").filter(Boolean).map((line, i) => (
-                      <p key={i}>{line}</p>
-                    ))}
                   </div>
-                )}
-              </div>
+
+                  <div className="card">
+                    <h3 className="card-heading">
+                      <History size={17} color="var(--blue-600)" />
+                      Visit Timeline
+                    </h3>
+                    <Timeline treatments={foundTreatments} labs={foundLabs} />
+                  </div>
+
+                  <LabTrends labs={foundLabs} />
+
+                  <div className="card">
+                    <h3 className="card-heading">
+                      <FlaskConical size={17} color="var(--blue-600)" />
+                      Add Treatment for This Patient
+                    </h3>
+
+                    <label className="field-label">Diagnosis</label>
+                    <input className="input" placeholder="e.g. Fever" value={docDiagnosis} onChange={e => setDocDiagnosis(e.target.value)} />
+
+                    <label className="field-label">Medication</label>
+                    <input className="input" placeholder="e.g. Crocin" value={docMedication} onChange={e => setDocMedication(e.target.value)} />
+
+                    <div className="grid-2">
+                      <div>
+                        <label className="field-label">Hospital / Clinic</label>
+                        <input className="input" list="hospital-options" placeholder="e.g. Apollo Hospital" value={docHospital} onChange={e => setDocHospital(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="field-label">Date</label>
+                        <input className="input" type="date" max={todayLocal()} value={docDate} onChange={e => setDocDate(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={doctorSaveTreatment}>
+                      <PlusCircle size={16} />
+                      Save Treatment
+                    </button>
+                  </div>
+
+                  <div className="card">
+                    <h3 className="card-heading">
+                      <TestTube2 size={17} color="var(--blue-600)" />
+                      Add Lab Result for This Patient
+                    </h3>
+
+                    <label className="field-label">Test Name</label>
+                    <input className="input" placeholder="e.g. Total Cholesterol" value={docLabName} onChange={e => setDocLabName(e.target.value)} />
+
+                    <div className="grid-3">
+                      <div>
+                        <label className="field-label">Value</label>
+                        <input className="input" placeholder="e.g. 225" value={docLabValue} onChange={e => setDocLabValue(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="field-label">Unit</label>
+                        <input className="input" placeholder="mg/dL" value={docLabUnit} onChange={e => setDocLabUnit(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="field-label">Reference Range</label>
+                        <input className="input" placeholder="< 200" value={docLabRange} onChange={e => setDocLabRange(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <label className="field-label">Status</label>
+                    <select className="input" value={docLabStatus} onChange={e => setDocLabStatus(e.target.value)}>
+                      <option value="auto">Auto — work it out from the reference range</option>
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                    </select>
+
+                    <div className="grid-2">
+                      <div>
+                        <label className="field-label">Hospital / Lab</label>
+                        <input className="input" list="hospital-options" placeholder="e.g. Apollo Diagnostics" value={docLabHospital} onChange={e => setDocLabHospital(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="field-label">Test Date</label>
+                        <input className="input" type="date" max={todayLocal()} value={docLabDate} onChange={e => setDocLabDate(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={doctorSaveLab}>
+                      <PlusCircle size={16} />
+                      Save Lab Result
+                    </button>
+                  </div>
+
+                  <div className="card">
+                    <h3 className="card-heading">
+                      <Sparkles size={17} color="var(--blue-600)" />
+                      AI Summary for This Patient
+                    </h3>
+
+                    <button className="btn btn-primary" onClick={doctorSummarize} disabled={docSummaryLoading}>
+                      {docSummaryLoading ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
+                      {docSummaryLoading ? "Summarizing..." : "Summarize Patient History"}
+                    </button>
+
+                    {docSummaryError && <div className="ai-error">{docSummaryError}</div>}
+
+                    {docSummary && (
+                      <div className="ai-summary-box">
+                        {docSummary.split("\n").filter(Boolean).map((line, i) => (
+                          <p key={i}>{line}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -1304,14 +1835,18 @@ function App() {
   }
 
   // ================= MAIN APP =================
+  const pendingCount = consents.filter((c) => c.status === "pending").length;
+
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "timeline", label: "Timeline", icon: History },
     { id: "patients", label: "Patients", icon: Users },
     { id: "labs", label: "Lab Reports", icon: TestTube2 },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "add", label: "Add Treatment", icon: PlusCircle },
     { id: "ai", label: "AI Summary", icon: Sparkles },
-    { id: "fhir", label: "FHIR Import", icon: CloudDownload }
+    { id: "fhir", label: "FHIR Import", icon: CloudDownload },
+    { id: "access", label: "Access & Privacy", icon: Lock }
   ];
 
   return (
@@ -1333,6 +1868,7 @@ function App() {
           >
             <item.icon size={17} />
             {item.label}
+            {item.id === "access" && pendingCount > 0 && <span className="nav-badge">{pendingCount}</span>}
           </div>
         ))}
 
@@ -1346,6 +1882,8 @@ function App() {
 
       {/* MAIN */}
       <div className="main">
+        <HospitalOptions hospitals={hospitals} />
+
         {/* DASHBOARD */}
         {activeTab === "dashboard" && (
           <>
@@ -1477,11 +2015,14 @@ function App() {
                   <div className="treatment-body">
                     <p className="treatment-diagnosis">{t.diagnosis}</p>
                     <p className="treatment-medication">{t.medication}</p>
+                    <RecordMeta rec={t} />
                   </div>
-                  <button className="btn-danger-outline btn" onClick={() => deleteTreatment(t._id)}>
-                    <Trash2 size={13} />
-                    Delete
-                  </button>
+                  {t.source !== "doctor" && (
+                    <button className="btn-danger-outline btn" onClick={() => deleteTreatment(t._id)}>
+                      <Trash2 size={13} />
+                      Delete
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -1517,10 +2058,22 @@ function App() {
 
               <label className="field-label">Status</label>
               <select className="input" value={testStatus} onChange={e => setTestStatus(e.target.value)}>
+                <option value="auto">Auto — work it out from the reference range</option>
                 <option value="low">Low</option>
                 <option value="normal">Normal</option>
                 <option value="high">High</option>
               </select>
+
+              <div className="grid-2">
+                <div>
+                  <label className="field-label">Hospital / Lab (optional)</label>
+                  <input className="input" list="hospital-options" placeholder="e.g. Apollo Diagnostics" value={testHospital} onChange={e => setTestHospital(e.target.value)} />
+                </div>
+                <div>
+                  <label className="field-label">Test Date</label>
+                  <input className="input" type="date" max={todayLocal()} value={testDate} onChange={e => setTestDate(e.target.value)} />
+                </div>
+              </div>
 
               <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={saveLabResult}>
                 <PlusCircle size={16} />
@@ -1544,15 +2097,20 @@ function App() {
                       <p className="treatment-medication">
                         {l.resultValue} {l.unit} {l.referenceRange ? `· Ref: ${l.referenceRange}` : ""}
                       </p>
+                      <RecordMeta rec={l} />
                     </div>
                     <span className={`status-badge status-${l.status}`}>{l.status}</span>
-                    <button className="btn-danger-outline btn" onClick={() => deleteLabResult(l._id)}>
-                      <Trash2 size={13} />
-                    </button>
+                    {l.source !== "doctor" && (
+                      <button className="btn-danger-outline btn" onClick={() => deleteLabResult(l._id)}>
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 ))
               )}
             </div>
+
+            <LabTrends labs={labResults} />
           </>
         )}
 
@@ -1597,6 +2155,17 @@ function App() {
               onChange={e => setMedication(e.target.value)}
             />
 
+            <div className="grid-2">
+              <div>
+                <label className="field-label">Hospital / Clinic (optional)</label>
+                <input className="input" list="hospital-options" placeholder="e.g. Apollo Hospital" value={tHospital} onChange={e => setTHospital(e.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Date</label>
+                <input className="input" type="date" max={todayLocal()} value={tDate} onChange={e => setTDate(e.target.value)} />
+              </div>
+            </div>
+
             <button className="btn btn-primary" style={{ marginTop: 22 }} onClick={saveTreatment}>
               <PlusCircle size={16} />
               Save Treatment
@@ -1633,6 +2202,20 @@ function App() {
             )}
           </div>
         )}
+        {/* TIMELINE */}
+        {activeTab === "timeline" && (
+          <div className="card">
+            <h3 className="card-heading">
+              <History size={17} color="var(--blue-600)" />
+              Visit Timeline
+            </h3>
+            <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -6, marginBottom: 18 }}>
+              Every treatment and lab result in date order, with who recorded it and where.
+            </p>
+            <Timeline treatments={treatments} labs={labResults} />
+          </div>
+        )}
+
         {/* FHIR IMPORT */}
         {activeTab === "fhir" && (
           <div className="card">
@@ -1664,6 +2247,97 @@ function App() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ACCESS & PRIVACY */}
+        {activeTab === "access" && (
+          <>
+            <div className="card">
+              <h3 className="card-heading">
+                <Lock size={17} color="var(--blue-600)" />
+                Doctor Access
+              </h3>
+              <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -6, marginBottom: 18 }}>
+                A doctor can only see your records after you approve them, and you can take that
+                access back at any time.
+              </p>
+
+              {consents.length === 0 ? (
+                <div className="empty-state">No doctor has asked for access yet</div>
+              ) : (
+                consents.map((c) => (
+                  <div className="consent-row" key={c.doctorRegId}>
+                    <div className="consent-info">
+                      <p className="treatment-diagnosis">{drName(c.doctorName) || c.doctorRegId}</p>
+                      <p className="treatment-medication">
+                        ID {c.doctorRegId} · requested {fmtDate(c.requestedAt)}
+                      </p>
+                    </div>
+
+                    {c.status === "pending" ? (
+                      <div className="consent-actions">
+                        <button className="btn btn-primary btn-sm" disabled={accessBusy} onClick={() => respondConsent(c.doctorRegId, "approve")}>
+                          <Check size={14} />
+                          Approve
+                        </button>
+                        <button className="btn btn-outline btn-sm" disabled={accessBusy} onClick={() => respondConsent(c.doctorRegId, "deny")}>
+                          <X size={14} />
+                          Deny
+                        </button>
+                      </div>
+                    ) : c.status === "approved" ? (
+                      <div className="consent-actions">
+                        <span className="status-badge status-approved">Approved</span>
+                        <button className="btn-danger-outline btn" disabled={accessBusy} onClick={() => respondConsent(c.doctorRegId, "revoke")}>
+                          Revoke
+                        </button>
+                      </div>
+                    ) : (
+                      <span className={`status-badge status-${c.status}`}>{c.status}</span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="card">
+              <h3 className="card-heading">
+                <ClipboardList size={17} color="var(--blue-600)" />
+                Access Log
+              </h3>
+              <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -6, marginBottom: 18 }}>
+                Every time a doctor opens or changes your record, it's listed here.
+              </p>
+
+              {accessLog.length === 0 ? (
+                <div className="empty-state">No doctor has accessed your records yet</div>
+              ) : (
+                accessLog.map((e, i) => (
+                  <div className="log-row" key={i}>
+                    <span className="log-when">{fmtDateTime(e.at)}</span>
+                    <span>
+                      <strong>{drName(e.doctorName) || e.doctorRegId}</strong> {ACCESS_ACTIONS[e.action] || e.action}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="card">
+              <h3 className="card-heading">
+                <Download size={17} color="var(--blue-600)" />
+                Your Data
+              </h3>
+              <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -6, marginBottom: 18 }}>
+                Download your treatments and lab results as a standard FHIR R4 bundle — the format
+                hospital systems use to exchange records. Your Aadhaar number is not included.
+              </p>
+              <button className="btn btn-primary" onClick={() => downloadFhir(aadhaar)}>
+                <Download size={16} />
+                Download My Data (FHIR)
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>

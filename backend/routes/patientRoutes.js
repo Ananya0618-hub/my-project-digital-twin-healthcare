@@ -1,23 +1,22 @@
 const express = require("express");
 const router = express.Router();
 
+const { getPatientById, updatePatient } = require("../controllers/patientController");
 const {
-  getAllPatients,
-  getPatientById,
-  addPatient,
-  updatePatient   // ✅ added
-} = require("../controllers/patientController");
+  requireAuth,
+  requireRole,
+  requirePatientAccess,
+  audit,
+  fromParams
+} = require("../middleware/auth");
 
-// ✅ GET all patient
-router.get("/", getAllPatients);
+// Patients are created through /api/auth/register only. The old open
+// "list every patient" and "create patient" endpoints were removed.
 
-// ✅ GET patient by Aadhaar ID
-router.get("/:aadhaar", getPatientById);
+// GET patient by Aadhaar ID — the patient themselves, or a doctor they've approved
+router.get("/:aadhaar", requireAuth, requirePatientAccess(fromParams), audit("view_record"), getPatientById);
 
-// ✅ POST add new patient
-router.post("/", addPatient);
-
-// ✅ PUT update patient by Aadhaar ID
-router.put("/:aadhaar", updatePatient);
+// PUT update — the patient themselves only
+router.put("/:aadhaar", requireAuth, requireRole("patient"), requirePatientAccess(fromParams), updatePatient);
 
 module.exports = router;

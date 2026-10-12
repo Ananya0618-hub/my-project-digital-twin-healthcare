@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Doctor = require("../models/Doctor");
 const { isVerified } = require("../utils/verificationStore");
+const { JWT_SECRET } = require("../config/jwt");
 
 // ================= REGISTER =================
 exports.registerDoctor = async (req, res) => {
@@ -66,7 +67,7 @@ exports.loginDoctor = async (req, res) => {
 
     const token = jwt.sign(
       { id: doctor._id, doctorRegId: doctor.doctorRegId, role: "doctor" },
-      "secret123",
+      JWT_SECRET,
       { expiresIn: "1d" }
     );
 

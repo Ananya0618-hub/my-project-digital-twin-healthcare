@@ -15,6 +15,8 @@ const fhirImportRoutes = require("./routes/fhirImportRoutes");
 const doctorAuthRoutes = require("./routes/doctorAuthRoutes");
 const aadhaarVerificationRoutes = require("./routes/aadhaarVerificationRoutes");
 const digilockerRoutes = require("./routes/digilockerRoutes");
+const consentRoutes = require("./routes/consentRoutes");
+const hospitalRoutes = require("./routes/hospitalRoutes");
 
 const app = express();
 
@@ -39,6 +41,8 @@ app.use("/api/fhir", fhirImportRoutes);
 app.use("/api/doctorauth", doctorAuthRoutes);
 app.use("/api/verify", aadhaarVerificationRoutes);
 app.use("/api/digilocker", digilockerRoutes);
+app.use("/api/consent", consentRoutes);
+app.use("/api/hospitals", hospitalRoutes);
 
 const PORT = process.env.PORT || 3001;
 
