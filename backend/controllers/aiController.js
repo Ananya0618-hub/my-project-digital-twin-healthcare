@@ -65,7 +65,8 @@ exports.summarizePatient = async (req, res) => {
         resultValue: l.resultValue,
         unit: l.unit,
         referenceRange: l.referenceRange,
-        status: l.status
+        // an unrated result has no range to judge it by; leave the status out rather than let it read as "normal"
+        ...(l.status !== "unrated" ? { status: l.status } : {})
       }))
     };
 

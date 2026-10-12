@@ -8,8 +8,9 @@ const STATUSES = ["low", "normal", "high"];
 const MAX_BULK_ROWS = 60;
 
 // Builds one LabResult document. status: "low" | "normal" | "high" is an explicit
-// override; anything else is derived from the value and reference range, falling
-// back to "normal" when the range can't be parsed.
+// override; anything else is derived from the value and reference range. With no
+// usable range (or a non-numeric value) there is nothing to compare against, so the
+// result is "unrated" — not "normal".
 function buildLab({ aadhaar, row, user, hospital, date, doctorName, fromReport = false }) {
   const range = parseReferenceRange(row.referenceRange);
   const isDoctor = user.role === "doctor";
@@ -22,7 +23,7 @@ function buildLab({ aadhaar, row, user, hospital, date, doctorName, fromReport =
     referenceRange: String(row.referenceRange || "").trim(),
     refLow: range ? range.low : null,
     refHigh: range ? range.high : null,
-    status: STATUSES.includes(row.status) ? row.status : computeLabStatus(row.resultValue, row.referenceRange) || "normal",
+    status: STATUSES.includes(row.status) ? row.status : computeLabStatus(row.resultValue, row.referenceRange) || "unrated",
     date: date || new Date(),
     hospital,
     source: isDoctor ? "doctor" : "patient",

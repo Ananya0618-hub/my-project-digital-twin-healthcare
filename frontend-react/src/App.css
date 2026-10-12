@@ -771,6 +771,7 @@ body {
 .dot-normal { background: var(--green-600); }
 .dot-high { background: var(--red-600); }
 .dot-low { background: var(--amber-600); }
+.dot-unrated { background: var(--ink-500); }
 
 .timeline-date {
   margin: 0 0 2px;
@@ -843,7 +844,8 @@ body {
 }
 
 .status-denied,
-.status-revoked {
+.status-revoked,
+.status-unrated {
   background: var(--border);
   color: var(--ink-500);
 }

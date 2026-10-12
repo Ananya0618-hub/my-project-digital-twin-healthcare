@@ -10,10 +10,11 @@ const labResultSchema = new mongoose.Schema(
     // Parsed from referenceRange at save time so charts can draw the normal band.
     refLow: { type: Number, default: null },
     refHigh: { type: Number, default: null },
+    // "unrated" = there was no reference range to compare against. It is NOT "normal".
     status: {
       type: String,
-      enum: ["low", "normal", "high"],
-      default: "normal"
+      enum: ["low", "normal", "high", "unrated"],
+      default: "unrated"
     },
     testDate: { type: String, default: "" },
     // Set explicitly when a result is created. No schema default: Mongoose would apply it to

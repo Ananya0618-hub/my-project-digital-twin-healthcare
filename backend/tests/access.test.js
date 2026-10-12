@@ -180,7 +180,7 @@ test("deleting: own self-reported records only; doctor-written ones are protecte
   assert.strictEqual((await ctx.call("GET", `/api/treatments/${ALICE}`, { token: A() })).body.length, 1);
 });
 
-test("lab status: auto from the reference range, explicit override, and safe fallback", async () => {
+test("lab status: auto from the reference range, explicit override, and 'unrated' when there is nothing to compare against", async () => {
   const post = async (body) => (await ctx.call("POST", "/api/labresults", { token: A(), body: { aadhaar: ALICE, testName: "T", ...body } })).body;
 
   let l = await post({ resultValue: "9", unit: "ng/mL", referenceRange: "30-100" });
@@ -195,8 +195,15 @@ test("lab status: auto from the reference range, explicit override, and safe fal
   l = await post({ resultValue: "9", referenceRange: "30-100", status: "high" }); // manual override wins
   assert.strictEqual(l.status, "high");
 
-  l = await post({ resultValue: "Positive", referenceRange: "see note" }); // unparseable -> normal, no crash
-  assert.deepStrictEqual([l.status, l.refLow, l.refHigh], ["normal", null, null]);
+  // no usable range is NOT "normal": there was nothing to compare against
+  l = await post({ resultValue: "Positive", referenceRange: "see note" });
+  assert.deepStrictEqual([l.status, l.refLow, l.refHigh], ["unrated", null, null]);
+  l = await post({ resultValue: "4.85", unit: "million/cumm" });                       // no range at all
+  assert.strictEqual(l.status, "unrated");
+  l = await post({ resultValue: "Negative", referenceRange: "", status: "auto" });
+  assert.strictEqual(l.status, "unrated");
+  l = await post({ resultValue: "4.85" , status: "normal" });                          // but a person can still say so explicitly
+  assert.strictEqual(l.status, "normal");
 });
 
 test("hospitals: only doctors add to the shared list; names are de-duplicated", async () => {

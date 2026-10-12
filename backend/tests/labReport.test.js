@@ -217,9 +217,9 @@ test("bulk: bad input is refused as a whole — nothing is half-saved", async ()
   assert.match(msg, /Result 2/);
 });
 
-test("bulk: reviewed rows keep what the person typed, with an unparseable range falling back to 'normal'", async () => {
+test("bulk: reviewed rows keep what the person typed; an unusable range leaves the result 'unrated', not 'normal'", async () => {
   const r = await bulk(patientToken(ALICE), { aadhaar: ALICE, rows: [{ testName: "Ferritin", resultValue: "55", unit: "ng/mL", referenceRange: "see note" }] });
   assert.strictEqual(r.status, 201);
   const [row] = await stored();
-  assert.deepStrictEqual([row.status, row.refLow, row.refHigh, row.referenceRange], ["normal", null, null, "see note"]);
+  assert.deepStrictEqual([row.status, row.refLow, row.refHigh, row.referenceRange], ["unrated", null, null, "see note"]);
 });

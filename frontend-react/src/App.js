@@ -84,6 +84,7 @@ const todayLocal = () => {
 };
 
 const SOURCE_LABEL = { doctor: "Doctor", patient: "Self-reported", "fhir-sandbox": "FHIR sandbox" };
+const statusLabel = (s) => (s === "unrated" ? "no range" : s);
 const ACCESS_ACTIONS = {
   view_record: "viewed your record",
   add_treatment: "added a treatment",
@@ -129,7 +130,7 @@ function Timeline({ treatments, labs }) {
             <>
               <p className="treatment-diagnosis">
                 {rec.testName}: {rec.resultValue} {rec.unit}
-                <span className={`status-badge status-${rec.status}`} style={{ marginLeft: 8 }}>{rec.status}</span>
+                <span className={`status-badge status-${rec.status}`} style={{ marginLeft: 8 }}>{statusLabel(rec.status)}</span>
               </p>
               {rec.referenceRange && <p className="treatment-medication">Reference: {rec.referenceRange}</p>}
             </>
@@ -406,8 +407,8 @@ function LabReportUpload({ aadhaar, onSaved }) {
         <>
           <div className="report-notes">
             <p>
-              Check these against your report — <strong>{draft.rows.length}</strong> result{draft.rows.length === 1 ? "" : "s"} found.
-              Reading can make mistakes, so fix anything that looks wrong or untick rows you don't want.
+              <strong>{draft.rows.length}</strong> result{draft.rows.length === 1 ? "" : "s"} found. Please check{" "}
+              {draft.rows.length === 1 ? "it" : "them"} against your report before saving. Missing a test? Add it with the form below.
             </p>
             {draft.method === "pattern" && (
               <p className="report-warn">
@@ -416,9 +417,10 @@ function LabReportUpload({ aadhaar, onSaved }) {
             )}
             {unverified > 0 && (
               <p className="report-warn">
-                {unverified} row{unverified === 1 ? "" : "s"} marked <strong>Check</strong> couldn't be matched to the text of the
-                report, or had a reference range that looks wrong (a lost decimal point, for example). They're unticked — correct them, then tick them if they're right.
-                If your report lists more tests than this, add the missing ones with the form below, or try a clearer photo.
+                <strong>
+                  {unverified} row{unverified === 1 ? " needs" : "s need"} your attention
+                </strong>{" "}
+                (marked <em>Check</em>) — unticked until you confirm.
               </p>
             )}
           </div>
@@ -446,7 +448,11 @@ function LabReportUpload({ aadhaar, onSaved }) {
               <input className="input rr-unit" placeholder="Unit" value={r.unit} aria-label="Unit" onChange={(e) => updateRow(r.id, { unit: e.target.value })} />
               <input className="input rr-range" placeholder="Range" value={r.referenceRange} aria-label="Reference range" onChange={(e) => updateRow(r.id, { referenceRange: e.target.value })} />
               <div className="rr-status">
-                {r.status && <span className={`status-badge status-${r.status}`}>{r.status}</span>}
+                {r.status ? (
+                  <span className={`status-badge status-${r.status}`}>{statusLabel(r.status)}</span>
+                ) : !r.referenceRange.trim() ? (
+                  <span className="status-badge status-unrated">no range</span>
+                ) : null}
                 {!r.verified && <span className="check-tag">Check</span>}
               </div>
             </div>
@@ -1409,7 +1415,7 @@ function App() {
     .map(([name, c]) => ({ name, count: c }));
 
   // ===== Derived: risk score (record-complexity proxy, not a clinical diagnosis) =====
-  const abnormalLabs = labResults.filter(l => l.status !== "normal").length;
+  const abnormalLabs = labResults.filter(l => l.status === "low" || l.status === "high").length; // unrated isn't abnormal
   const riskScore = Math.min(treatments.length * 12 + abnormalLabs * 10, 100);
   const riskLabel = riskScore < 30 ? "Low" : riskScore < 70 ? "Moderate" : "High";
   const riskColor = riskScore < 30 ? "var(--green-600)" : riskScore < 70 ? "var(--amber-600)" : "var(--red-600)";
@@ -2347,7 +2353,7 @@ function App() {
                       </p>
                       <RecordMeta rec={l} />
                     </div>
-                    <span className={`status-badge status-${l.status}`}>{l.status}</span>
+                    <span className={`status-badge status-${l.status}`}>{statusLabel(l.status)}</span>
                     {l.source !== "doctor" && (
                       <button className="btn-danger-outline btn" onClick={() => deleteLabResult(l._id)}>
                         <Trash2 size={13} />

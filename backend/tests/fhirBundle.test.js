@@ -80,3 +80,17 @@ test("conditions and medications link together", () => {
   assert.strictEqual(cond.recorder.display, "Asha Rao");
   assert.strictEqual(cond.note[0].text, "Recorded at AIIMS Delhi");
 });
+
+test("an unrated result is exported without an interpretation (it must not read as normal)", () => {
+  const b = buildBundle({
+    patient,
+    treatments: [],
+    labs: [
+      { testName: "RBC Count", resultValue: "4.85", unit: "million/cumm", referenceRange: "", status: "unrated", date: new Date("2026-08-02") },
+      { testName: "Vitamin D", resultValue: "9", unit: "ng/mL", referenceRange: "30-100", status: "low", date: new Date("2026-08-02") }
+    ]
+  });
+  const obs = b.entry.map((e) => e.resource).filter((r) => r.resourceType === "Observation");
+  assert.strictEqual(obs.find((o) => o.code.text === "RBC Count").interpretation, undefined);
+  assert.strictEqual(obs.find((o) => o.code.text === "Vitamin D").interpretation[0].coding[0].code, "L");
+});

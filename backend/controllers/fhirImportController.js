@@ -14,11 +14,15 @@ async function fetchFhir(url) {
 }
 
 function deriveStatus(value, low, high) {
-  if (typeof value !== "number") return "normal";
+  // nothing to compare against -> unrated (not "normal")
+  if (!Number.isFinite(value)) return "unrated";
+  if (typeof low !== "number" && typeof high !== "number") return "unrated";
   if (typeof low === "number" && value < low) return "low";
   if (typeof high === "number" && value > high) return "high";
   return "normal";
 }
+
+exports.deriveStatus = deriveStatus;
 
 exports.importFromFhirSandbox = async (req, res) => {
   try {
