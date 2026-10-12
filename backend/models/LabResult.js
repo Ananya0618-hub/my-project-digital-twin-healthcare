@@ -26,7 +26,10 @@ const labResultSchema = new mongoose.Schema(
       type: String,
       enum: ["patient", "doctor", "fhir-sandbox"],
       default: "patient"
-    }
+    },
+    // True when the values were read from an uploaded report (OCR/AI) and then
+    // reviewed and confirmed by the person saving them.
+    fromReport: { type: Boolean, default: false }
   },
   { timestamps: true }
 );

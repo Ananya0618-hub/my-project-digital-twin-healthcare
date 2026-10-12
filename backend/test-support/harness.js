@@ -43,7 +43,7 @@ async function start() {
     return { status: res.status, body: json, text };
   };
 
-  return { server, call, models: fake };
+  return { server, call, base, models: fake };
 }
 
 module.exports = { start, patientToken, legacyPatientToken, doctorToken };

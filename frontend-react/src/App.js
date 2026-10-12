@@ -39,7 +39,8 @@ import {
   UserCheck,
   Check,
   X,
-  TrendingUp
+  TrendingUp,
+  Upload
 } from "lucide-react";
 import "./App.css";
 
@@ -99,6 +100,7 @@ function RecordMeta({ rec, withDate = true }) {
     <p className="record-meta">
       {bits.join(" · ")}
       <span className={`source-tag source-${source}`}>{SOURCE_LABEL[source] || source}</span>
+      {rec.fromReport && <span className="source-tag source-report">From report</span>}
     </p>
   );
 }
@@ -232,6 +234,241 @@ function HospitalOptions({ hospitals }) {
         <option key={h} value={h} />
       ))}
     </datalist>
+  );
+}
+
+// Phone photos are huge; shrink them in the browser first (quicker upload, and well under the proxy's size limit).
+async function downscaleImage(file) {
+  if (!file.type.startsWith("image/") || typeof createImageBitmap !== "function") return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 2200 / Math.max(bmp.width, bmp.height));
+    if (scale === 1 && file.size < 1024 * 1024) {
+      if (bmp.close) bmp.close();
+      return file;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    if (bmp.close) bmp.close();
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));
+    return blob ? new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
+  } catch {
+    return file;
+  }
+}
+
+// Upload a lab report -> the server reads it into draft rows -> the person reviews and edits
+// them -> only the confirmed rows are saved. Nothing is saved without that confirmation.
+function LabReportUpload({ aadhaar, onSaved }) {
+  const [file, setFile] = useState(null);
+  const [inputKey, setInputKey] = useState(0); // changing it clears the file input
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [draft, setDraft] = useState(null); // { method, rows: [{ id, include, ... }] }
+  const [hospital, setHospital] = useState("");
+  const [date, setDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savedCount, setSavedCount] = useState(null);
+
+  const pickFile = (e) => {
+    setFile(e.target.files && e.target.files[0] ? e.target.files[0] : null);
+    setDraft(null);
+    setError(null);
+    setSavedCount(null);
+  };
+
+  const readReport = async () => {
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) {
+      setError("That file is too large ❌");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setDraft(null);
+    setSavedCount(null);
+
+    try {
+      const upload = await downscaleImage(file);
+      const form = new FormData();
+      form.append("report", upload, upload.name || file.name);
+
+      const res = await authFetch(`${API}/labresults/extract`, { method: "POST", body: form });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(data.message || "Couldn't read that report ❌");
+        return;
+      }
+      setDraft({
+        method: data.method,
+        rows: data.rows.map((r, i) => ({ ...r, id: i, include: r.verified }))
+      });
+      setDate(data.reportDate || "");
+    } catch {
+      setError("Network error ❌");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateRow = (id, patch) =>
+    setDraft((d) => ({
+      ...d,
+      rows: d.rows.map((r) =>
+        r.id !== id
+          ? r
+          : {
+              ...r,
+              ...patch,
+              // the preview status was worked out from the old value/range; it's recalculated on save
+              ...("resultValue" in patch || "referenceRange" in patch ? { status: null } : {})
+            }
+      )
+    }));
+
+  const included = draft ? draft.rows.filter((r) => r.include && r.testName.trim() && r.resultValue.trim()) : [];
+  const unverified = draft ? draft.rows.filter((r) => !r.verified).length : 0;
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await authFetch(`${API}/labresults/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          aadhaar,
+          hospital,
+          date: date || undefined,
+          rows: included.map(({ testName, resultValue, unit, referenceRange }) => ({ testName, resultValue, unit, referenceRange }))
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message || "Couldn't save the results ❌");
+        return;
+      }
+      setSavedCount(data.saved);
+      setDraft(null);
+      setFile(null);
+      setInputKey((k) => k + 1);
+      setHospital("");
+      setDate("");
+      if (onSaved) onSaved();
+    } catch {
+      setError("Network error ❌");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="card">
+      <h3 className="card-heading">
+        <Upload size={17} color="var(--blue-600)" />
+        Upload Lab Report
+      </h3>
+      <p style={{ color: "var(--ink-500)", fontSize: 13.5, marginTop: -6, marginBottom: 18 }}>
+        Add a photo, screenshot or PDF of a lab report and the results are filled in for you — no typing each value.
+        The report is read on our server and isn't stored. To pick out the results, its text (with name, ID and contact
+        lines removed where we can detect them) is sent to an AI service. You check everything before anything is saved.
+      </p>
+
+      <input
+        key={inputKey}
+        className="input"
+        type="file"
+        accept="image/png,image/jpeg,image/webp,application/pdf"
+        onChange={pickFile}
+        aria-label="Lab report file"
+      />
+
+      <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={readReport} disabled={!file || busy}>
+        {busy ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
+        {busy ? "Reading your report… (photos can take up to a minute)" : "Read Report"}
+      </button>
+
+      {error && <div className="ai-error">{error}</div>}
+
+      {savedCount !== null && (
+        <div className="ai-summary-box">
+          <p>Saved {savedCount} lab result{savedCount === 1 ? "" : "s"} ✅ — they're in the lab history below.</p>
+        </div>
+      )}
+
+      {draft && (
+        <>
+          <div className="report-notes">
+            <p>
+              Check these against your report — <strong>{draft.rows.length}</strong> result{draft.rows.length === 1 ? "" : "s"} found.
+              Reading can make mistakes, so fix anything that looks wrong or untick rows you don't want.
+            </p>
+            {draft.method === "pattern" && (
+              <p className="report-warn">
+                The AI service wasn't available, so this used basic pattern matching. Please check every row carefully.
+              </p>
+            )}
+            {unverified > 0 && (
+              <p className="report-warn">
+                {unverified} row{unverified === 1 ? "" : "s"} marked <strong>Check</strong> couldn't be matched to the text of the
+                report (or had a reference range that wasn't in it). They're unticked — correct them, then tick them if they're right.
+              </p>
+            )}
+          </div>
+
+          <div className="report-head">
+            <span />
+            <span>Test</span>
+            <span>Value</span>
+            <span>Unit</span>
+            <span>Reference range</span>
+            <span />
+          </div>
+
+          {draft.rows.map((r) => (
+            <div className={`report-row ${r.include ? "" : "report-row-off"}`} key={r.id}>
+              <input
+                className="rr-check"
+                type="checkbox"
+                checked={r.include}
+                onChange={(e) => updateRow(r.id, { include: e.target.checked })}
+                aria-label={`Include ${r.testName}`}
+              />
+              <input className="input rr-name" placeholder="Test" value={r.testName} aria-label="Test name" onChange={(e) => updateRow(r.id, { testName: e.target.value })} />
+              <input className="input rr-value" placeholder="Value" value={r.resultValue} aria-label="Value" onChange={(e) => updateRow(r.id, { resultValue: e.target.value })} />
+              <input className="input rr-unit" placeholder="Unit" value={r.unit} aria-label="Unit" onChange={(e) => updateRow(r.id, { unit: e.target.value })} />
+              <input className="input rr-range" placeholder="Range" value={r.referenceRange} aria-label="Reference range" onChange={(e) => updateRow(r.id, { referenceRange: e.target.value })} />
+              <div className="rr-status">
+                {r.status && <span className={`status-badge status-${r.status}`}>{r.status}</span>}
+                {!r.verified && <span className="check-tag">Check</span>}
+              </div>
+            </div>
+          ))}
+
+          <div className="grid-2" style={{ marginTop: 16 }}>
+            <div>
+              <label className="field-label">Hospital / Lab (optional)</label>
+              <input className="input" list="hospital-options" placeholder="e.g. Apollo Diagnostics" value={hospital} onChange={(e) => setHospital(e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">Report date</label>
+              <input className="input" type="date" max={todayLocal()} value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+          </div>
+
+          <button className="btn btn-primary" style={{ marginTop: 18 }} onClick={save} disabled={included.length === 0 || saving}>
+            {saving ? <Loader2 size={16} className="spin" /> : <Check size={16} />}
+            {saving ? "Saving..." : `Save ${included.length} result${included.length === 1 ? "" : "s"}`}
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1755,6 +1992,14 @@ function App() {
                     </button>
                   </div>
 
+                  <LabReportUpload
+                    aadhaar={foundPatient.aadhaar_id}
+                    onSaved={() => {
+                      refreshFoundPatientRecords();
+                      loadHospitals();
+                    }}
+                  />
+
                   <div className="card">
                     <h3 className="card-heading">
                       <TestTube2 size={17} color="var(--blue-600)" />
@@ -2032,6 +2277,8 @@ function App() {
         {/* LAB REPORTS */}
         {activeTab === "labs" && (
           <>
+            <LabReportUpload aadhaar={aadhaar} onSaved={loadLabResults} />
+
             <div className="card">
               <h3 className="card-heading">
                 <TestTube2 size={17} color="var(--blue-600)" />

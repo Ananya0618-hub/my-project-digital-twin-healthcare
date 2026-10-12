@@ -896,3 +896,95 @@ body {
     width: auto;
   }
 }
+
+/* ============= LAB REPORT UPLOAD ============= */
+
+.source-report {
+  background: var(--amber-100);
+  color: var(--amber-600);
+}
+
+.report-notes {
+  margin: 20px 0 14px;
+  font-size: 13.5px;
+  color: var(--ink-700);
+}
+
+.report-notes p {
+  margin: 0 0 8px;
+}
+
+.report-warn {
+  padding: 10px 12px;
+  background: var(--amber-100);
+  color: #92400e;
+  border-radius: var(--radius-sm);
+}
+
+.report-head,
+.report-row {
+  display: grid;
+  grid-template-columns: 28px 2.2fr 1fr 1fr 1.4fr 104px;
+  gap: 8px;
+  align-items: center;
+}
+
+.report-head {
+  padding: 0 0 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+}
+
+.report-row {
+  padding: 5px 0;
+}
+
+.report-row .input {
+  padding: 8px 10px;
+  font-size: 13.5px;
+}
+
+.report-row-off {
+  opacity: 0.55;
+}
+
+.rr-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.check-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--amber-600);
+  color: white;
+}
+
+@media (max-width: 720px) {
+  .report-head {
+    display: none;
+  }
+  .report-row {
+    grid-template-columns: 28px 1fr 1fr;
+    grid-template-areas:
+      "check name name"
+      ".     value unit"
+      ".     range status";
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .rr-check { grid-area: check; }
+  .rr-name { grid-area: name; }
+  .rr-value { grid-area: value; }
+  .rr-unit { grid-area: unit; }
+  .rr-range { grid-area: range; }
+  .rr-status { grid-area: status; }
+}

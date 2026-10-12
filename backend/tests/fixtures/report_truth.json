@@ -1,0 +1,86 @@
+[
+ {
+  "testName": "Haemoglobin (Hb)",
+  "resultValue": "13.2",
+  "unit": "g/dL",
+  "referenceRange": "13.0 - 17.0"
+ },
+ {
+  "testName": "Total Leucocyte Count",
+  "resultValue": "11200",
+  "unit": "/cumm",
+  "referenceRange": "4000 - 11000"
+ },
+ {
+  "testName": "RBC Count",
+  "resultValue": "4.85",
+  "unit": "million/cumm",
+  "referenceRange": "4.5 - 5.5"
+ },
+ {
+  "testName": "Platelet Count",
+  "resultValue": "152000",
+  "unit": "/cumm",
+  "referenceRange": "150000 - 410000"
+ },
+ {
+  "testName": "Fasting Blood Sugar",
+  "resultValue": "112",
+  "unit": "mg/dL",
+  "referenceRange": "70 - 99"
+ },
+ {
+  "testName": "HbA1c",
+  "resultValue": "6.1",
+  "unit": "%",
+  "referenceRange": "< 5.7"
+ },
+ {
+  "testName": "Total Cholesterol",
+  "resultValue": "225",
+  "unit": "mg/dL",
+  "referenceRange": "< 200"
+ },
+ {
+  "testName": "HDL Cholesterol",
+  "resultValue": "38",
+  "unit": "mg/dL",
+  "referenceRange": "> 40"
+ },
+ {
+  "testName": "LDL Cholesterol",
+  "resultValue": "148",
+  "unit": "mg/dL",
+  "referenceRange": "< 100"
+ },
+ {
+  "testName": "Triglycerides",
+  "resultValue": "175",
+  "unit": "mg/dL",
+  "referenceRange": "< 150"
+ },
+ {
+  "testName": "Serum Creatinine",
+  "resultValue": "0.9",
+  "unit": "mg/dL",
+  "referenceRange": "0.7 - 1.3"
+ },
+ {
+  "testName": "TSH",
+  "resultValue": "2.8",
+  "unit": "uIU/mL",
+  "referenceRange": "0.4 - 4.0"
+ },
+ {
+  "testName": "Vitamin D (25-OH)",
+  "resultValue": "18.5",
+  "unit": "ng/mL",
+  "referenceRange": "30 - 100"
+ },
+ {
+  "testName": "Vitamin B12",
+  "resultValue": "245",
+  "unit": "pg/mL",
+  "referenceRange": "211 - 911"
+ }
+]
