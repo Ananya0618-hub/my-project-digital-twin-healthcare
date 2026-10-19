@@ -40,7 +40,8 @@ import {
   Check,
   X,
   TrendingUp,
-  Upload
+  Upload,
+  Copy
 } from "lucide-react";
 import "./App.css";
 
@@ -85,6 +86,47 @@ const todayLocal = () => {
 
 const SOURCE_LABEL = { doctor: "Doctor", patient: "Self-reported", "fhir-sandbox": "FHIR sandbox" };
 const statusLabel = (s) => (s === "unrated" ? "no range" : s);
+
+// "HM-1234-5678-9012" (any case, spaces or hyphens) as opposed to a 12-digit Aadhaar number
+const looksLikeRegistrationNumber = (text) => /^hm[\s-]?\d/i.test(text.trim());
+
+// The patient's registration number with a copy button: the identifier to give a doctor instead of Aadhaar.
+function RegistrationNumber({ value, showHint = true }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const el = document.createElement("textarea"); // older browsers / non-secure pages
+      el.value = value;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      el.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div className="regno-box">
+      <div className="regno-main">
+        <p className="regno-label">Your registration number</p>
+        <p className="regno-value">{value}</p>
+        {showHint && (
+          <p className="regno-hint">
+            Give this to a doctor instead of your Aadhaar number. They still need your approval to see anything.
+          </p>
+        )}
+      </div>
+      <button className="btn btn-outline btn-sm" onClick={copy} aria-label="Copy registration number">
+        {copied ? <Check size={14} /> : <Copy size={14} />}
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
 const ACCESS_ACTIONS = {
   view_record: "viewed your record",
   add_treatment: "added a treatment",
@@ -1162,12 +1204,13 @@ function App() {
 
   // DOCTOR: LOOK UP A PATIENT BY AADHAAR (needs the patient's approval)
   const lookupPatient = async (override) => {
-    // onClick passes an event, openPatient passes an Aadhaar string
+    // onClick passes an event; openPatient passes a registration number or Aadhaar string
     const target = (typeof override === "string" ? override : searchAadhaar).trim();
     if (!target) {
-      alert("Enter a patient's Aadhaar number ❌");
+      alert("Enter a patient's registration number or Aadhaar number ❌");
       return;
     }
+    const byNumber = looksLikeRegistrationNumber(target);
 
     setLookupLoading(true);
     setLookupError(null);
@@ -1178,27 +1221,34 @@ function App() {
     setDocSummary(null);
 
     try {
-      const profileRes = await authFetch(`${API}/patients/${target}`);
+      const profileRes = byNumber
+        ? await authFetch(`${API}/patients/lookup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ registrationNumber: target })
+          })
+        : await authFetch(`${API}/patients/${target}`);
 
       if (profileRes.status === 403) {
         const body = await profileRes.json().catch(() => ({}));
         if (body.code === "CONSENT_REQUIRED") {
-          setConsentNeeded({ aadhaar: target, status: body.consentStatus || "none" });
+          setConsentNeeded({ ...(byNumber ? { registrationNumber: target } : { aadhaar: target }), status: body.consentStatus || "none" });
         } else {
           setLookupError(body.message || "Access denied ❌");
         }
         return;
       }
       if (!profileRes.ok) {
-        setLookupError("No patient found with that Aadhaar ❌");
+        const body = await profileRes.json().catch(() => ({}));
+        setLookupError(body.message || (byNumber ? "Couldn't open that patient ❌" : "No patient found with that Aadhaar ❌"));
         return;
       }
       const profile = await profileRes.json();
       setFoundPatient(profile);
 
       const [treatRes, labRes] = await Promise.all([
-        authFetch(`${API}/treatments/${target}`),
-        authFetch(`${API}/labresults/${target}`)
+        authFetch(`${API}/treatments/${profile.aadhaar_id}`),
+        authFetch(`${API}/labresults/${profile.aadhaar_id}`)
       ]);
       setFoundTreatments(treatRes.ok ? await treatRes.json() : []);
       setFoundLabs(labRes.ok ? await labRes.json() : []);
@@ -1217,7 +1267,11 @@ function App() {
     const res = await authFetch(`${API}/consent/request`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ patientAadhaar: consentNeeded.aadhaar })
+      body: JSON.stringify(
+        consentNeeded.registrationNumber
+          ? { registrationNumber: consentNeeded.registrationNumber }
+          : { patientAadhaar: consentNeeded.aadhaar }
+      )
     });
     const data = await res.json().catch(() => ({}));
 
@@ -1226,14 +1280,14 @@ function App() {
       setLookupError(data.message || "Couldn't send the request ❌");
       return;
     }
-    setConsentNeeded({ aadhaar: consentNeeded.aadhaar, status: data.status });
+    setConsentNeeded({ ...consentNeeded, status: data.status });
   };
 
   // DOCTOR: open one of the patients who've approved access
-  const openPatient = (patientAadhaar) => {
-    setSearchAadhaar(patientAadhaar);
+  const openPatient = (patientKey) => {
+    setSearchAadhaar(patientKey);
     setDoctorTab("search");
-    lookupPatient(patientAadhaar);
+    lookupPatient(patientKey);
   };
 
   const refreshFoundPatientRecords = async () => {
@@ -1828,10 +1882,10 @@ function App() {
                     <div className="consent-info">
                       <p className="treatment-diagnosis">{p.patientName || "Patient"}</p>
                       <p className="treatment-medication">
-                        Aadhaar ••••{p.patientAadhaar.slice(-4)} · access since {fmtDate(p.since)}
+                        {p.registrationNumber || `Aadhaar ••••${p.patientAadhaar.slice(-4)}`} · access since {fmtDate(p.since)}
                       </p>
                     </div>
-                    <button className="btn btn-primary btn-sm" onClick={() => openPatient(p.patientAadhaar)}>
+                    <button className="btn btn-primary btn-sm" onClick={() => openPatient(p.registrationNumber || p.patientAadhaar)}>
                       Open
                     </button>
                   </div>
@@ -1846,14 +1900,14 @@ function App() {
               <div className="card">
                 <h3 className="card-heading">
                   <Search size={17} color="var(--blue-600)" />
-                  Search Patient by Aadhaar
+                  Search Patient
                 </h3>
 
                 <div className="search-wrap">
                   <Search size={16} />
                   <input
                     className="input"
-                    placeholder="Enter 12-digit Aadhaar"
+                    placeholder="Registration number (HM-…) or Aadhaar"
                     value={searchAadhaar}
                     onChange={e => setSearchAadhaar(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && lookupPatient()}
@@ -1909,6 +1963,7 @@ function App() {
                       <div>
                         <p className="detail-label" style={{ margin: 0 }}>Patient</p>
                         <h2 style={{ margin: "2px 0 0", fontSize: 20 }}>{foundPatient.name}</h2>
+                        {foundPatient.registrationNumber && <p className="regno-inline">{foundPatient.registrationNumber}</p>}
                       </div>
                       <button
                         className="btn btn-outline btn-sm"
@@ -2147,6 +2202,7 @@ function App() {
                   <h2 className="hero-name">{profile?.name || aadhaar}</h2>
                 </div>
               </div>
+              {profile?.registrationNumber && <RegistrationNumber value={profile.registrationNumber} />}
             </div>
 
             <div className="stat-grid">

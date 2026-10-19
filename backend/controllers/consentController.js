@@ -2,17 +2,32 @@ const Consent = require("../models/Consent");
 const Patient = require("../models/Patient");
 const AccessLog = require("../models/AccessLog");
 const { getDoctorName } = require("../utils/doctors");
+const { normalize: normalizeRegistrationNumber, isValid: isValidRegistrationNumber } = require("../utils/registrationNumber");
+const { tooMany } = require("../utils/rateLimit");
+const limits = require("../config/limits");
 
 // ---- doctor: ask a patient for access -------------------------------------
 exports.requestAccess = async (req, res) => {
   try {
-    const { patientAadhaar } = req.body || {};
-    if (!/^\d{12}$/.test(patientAadhaar || "")) {
-      return res.status(400).json({ message: "Enter a valid 12-digit Aadhaar ❌" });
+    // A request names the patient by registration number (preferred) or Aadhaar. The reply never
+    // contains the Aadhaar number.
+    const { patientAadhaar: aadhaarIn, registrationNumber } = req.body || {};
+    let patient;
+    if (registrationNumber !== undefined) {
+      const number = normalizeRegistrationNumber(registrationNumber);
+      if (!number || !isValidRegistrationNumber(number)) {
+        return res.status(400).json({ message: "That doesn't look like a valid registration number — check it for typos ❌" });
+      }
+      patient = await Patient.findOne({ registrationNumber: number });
+      if (!patient) return res.status(404).json({ message: "No patient found with that registration number ❌" });
+    } else {
+      if (!/^\d{12}$/.test(aadhaarIn || "")) {
+        return res.status(400).json({ message: "Enter a valid 12-digit Aadhaar ❌" });
+      }
+      patient = await Patient.findOne({ aadhaar_id: aadhaarIn });
+      if (!patient) return res.status(404).json({ message: "No patient found with that Aadhaar ❌" });
     }
-
-    const patient = await Patient.findOne({ aadhaar_id: patientAadhaar });
-    if (!patient) return res.status(404).json({ message: "No patient found with that Aadhaar ❌" });
+    const patientAadhaar = patient.aadhaar_id;
 
     const { doctorRegId } = req.user;
     const doctorName = await getDoctorName(doctorRegId);
@@ -20,6 +35,11 @@ exports.requestAccess = async (req, res) => {
     const existing = await Consent.findOne({ patientAadhaar, doctorRegId });
     if (existing && (existing.status === "approved" || existing.status === "pending")) {
       return res.json({ status: existing.status });
+    }
+
+    // a new (or re-opened) request uses up part of the doctor's hourly allowance
+    if (tooMany(`consent:${doctorRegId}`, limits.consentRequests)) {
+      return res.status(429).json({ message: "You've sent a lot of access requests ❌ — wait a while before sending more" });
     }
 
     // denied / revoked -> the doctor may ask again, which reopens it as pending
@@ -48,13 +68,17 @@ exports.requestAccess = async (req, res) => {
 exports.myPatients = async (req, res) => {
   try {
     const rows = await Consent.find({ doctorRegId: req.user.doctorRegId, status: "approved" }).sort({ respondedAt: -1 });
-    res.json(
-      rows.map((c) => ({
+    const out = [];
+    for (const c of rows) {
+      const patient = await Patient.findOne({ aadhaar_id: c.patientAadhaar });
+      out.push({
         patientAadhaar: c.patientAadhaar,
+        registrationNumber: patient ? patient.registrationNumber || null : null,
         patientName: c.patientName,
         since: c.respondedAt
-      }))
-    );
+      });
+    }
+    res.json(out);
   } catch (err) {
     console.error("❌ MY PATIENTS ERROR:", err);
     res.status(500).json({ message: err.message || "Server error ❌" });

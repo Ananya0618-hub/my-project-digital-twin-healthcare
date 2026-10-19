@@ -28,6 +28,23 @@ const p = [
   [7, 0, 4, 6, 9, 1, 3, 2, 5, 8]
 ];
 
+// inverse table, used to turn the running checksum into the digit that makes it zero
+const inv = [0, 4, 3, 2, 1, 5, 6, 7, 8, 9];
+
+/**
+ * The Verhoeff check digit to append to numStr so that numStr + digit validates.
+ * (The same algorithm, run with the check position left empty.)
+ */
+function verhoeffCheckDigit(numStr) {
+  if (!/^\d+$/.test(numStr)) throw new Error("digits only");
+  const digits = numStr.split("").reverse().map(Number);
+  let c = 0;
+  for (let i = 0; i < digits.length; i++) {
+    c = d[c][p[(i + 1) % 8][digits[i]]];
+  }
+  return inv[c];
+}
+
 /**
  * Validates a number string against the Verhoeff checksum.
  * Returns true if the number is structurally valid (matches the
@@ -47,4 +64,4 @@ function isValidVerhoeff(numStr) {
   return c === 0;
 }
 
-module.exports = { isValidVerhoeff };
+module.exports = { isValidVerhoeff, verhoeffCheckDigit };

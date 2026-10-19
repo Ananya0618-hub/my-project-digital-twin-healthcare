@@ -2,6 +2,8 @@ const jwt = require("jsonwebtoken");
 const { JWT_SECRET } = require("../config/jwt");
 const Consent = require("../models/Consent");
 const { logAccess } = require("../utils/audit");
+const { tooMany } = require("../utils/rateLimit");
+const limits = require("../config/limits");
 
 // Verifies the Bearer token and sets req.user:
 //   patient -> { role: "patient", aadhaar }
@@ -33,6 +35,23 @@ const requireRole = (role) => (req, res, next) =>
 const fromParams = (req) => req.params.aadhaar;
 const fromBody = (req) => req.body && req.body.aadhaar;
 
+// A doctor's consent record for one patient (null if they have never asked).
+const findConsent = (patientAadhaar, doctorRegId) => Consent.findOne({ patientAadhaar, doctorRegId });
+
+// Refuse a doctor who has no approved consent. Every refusal counts toward a limit, so someone
+// trying lots of Aadhaar or registration numbers to find patients is cut off (429) after a few.
+// A doctor opening patients who DID approve them is never counted.
+function denyAccess(req, res, consent) {
+  if (tooMany(`denied:${req.user.doctorRegId}`, limits.deniedAccess)) {
+    return res.status(429).json({ message: "Too many attempts to open records you don't have access to ❌ — wait a few minutes and try again" });
+  }
+  return res.status(403).json({
+    code: "CONSENT_REQUIRED",
+    consentStatus: consent ? consent.status : "none",
+    message: "This patient hasn't granted you access ❌"
+  });
+}
+
 // Gate for anything that reads or writes one patient's data.
 //   patient -> only their own Aadhaar
 //   doctor  -> only with an approved Consent from that patient
@@ -48,14 +67,8 @@ const requirePatientAccess = (getAadhaar) => async (req, res, next) => {
       return res.status(403).json({ message: "You can only access your own records ❌" });
     }
   } else {
-    const consent = await Consent.findOne({ patientAadhaar: aadhaar, doctorRegId: req.user.doctorRegId });
-    if (!consent || consent.status !== "approved") {
-      return res.status(403).json({
-        code: "CONSENT_REQUIRED",
-        consentStatus: consent ? consent.status : "none",
-        message: "This patient hasn't granted you access ❌"
-      });
-    }
+    const consent = await findConsent(aadhaar, req.user.doctorRegId);
+    if (!consent || consent.status !== "approved") return denyAccess(req, res, consent);
   }
 
   req.targetAadhaar = aadhaar;
@@ -75,4 +88,4 @@ const audit = (action) => async (req, res, next) => {
   }
 };
 
-module.exports = { requireAuth, requireRole, requirePatientAccess, audit, fromParams, fromBody };
+module.exports = { requireAuth, requireRole, requirePatientAccess, audit, fromParams, fromBody, findConsent, denyAccess };

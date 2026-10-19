@@ -40,7 +40,10 @@ function buildBundle({ patient, treatments, labs }) {
     resource: {
       resourceType: "Patient",
       id: patientRef.slice(9),
-      identifier: [{ system: "urn:healthmirror:patient-id", value: String(patient._id) }],
+      identifier: [
+        { system: "urn:healthmirror:patient-id", value: String(patient._id) },
+        ...(patient.registrationNumber ? [{ system: "urn:healthmirror:registration-number", value: patient.registrationNumber }] : [])
+      ],
       name: [{ text: patient.name }],
       ...(patient.mobile || patient.email
         ? {

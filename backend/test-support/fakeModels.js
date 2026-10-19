@@ -30,9 +30,11 @@ function makeModel(name, defaults = () => ({}), uniqueOn = []) {
       const i = store.indexOf(this);
       if (i === -1) {
         for (const keys of uniqueOn) {
+          if (keys.some((k) => this[k] === undefined || this[k] === null)) continue; // sparse: unset values never clash
           if (store.some((d) => keys.every((k) => d[k] === this[k]))) {
             const err = new Error("E11000 duplicate key");
             err.code = 11000;
+            err.keyPattern = Object.fromEntries(keys.map((k) => [k, 1]));
             throw err;
           }
         }
@@ -66,7 +68,7 @@ function makeModel(name, defaults = () => ({}), uniqueOn = []) {
 const now = () => new Date();
 
 module.exports = {
-  Patient: makeModel("Patient"),
+  Patient: makeModel("Patient", () => ({}), [["aadhaar_id"], ["registrationNumber"]]),
   Doctor: makeModel("Doctor"),
   User: makeModel("User"),
   Treatment: makeModel("Treatment", () => ({ date: now(), hospital: "", doctorRegId: "", doctorName: "", source: "patient" })),

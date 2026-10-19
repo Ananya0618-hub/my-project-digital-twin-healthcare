@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { getPatientById, updatePatient } = require("../controllers/patientController");
+const { getPatientById, updatePatient, lookupByRegistration } = require("../controllers/patientController");
 const {
   requireAuth,
   requireRole,
@@ -12,6 +12,9 @@ const {
 
 // Patients are created through /api/auth/register only. The old open
 // "list every patient" and "create patient" endpoints were removed.
+
+// POST open a patient by their registration number (doctors) — same consent rule as by Aadhaar
+router.post("/lookup", requireAuth, requireRole("doctor"), lookupByRegistration);
 
 // GET patient by Aadhaar ID — the patient themselves, or a doctor they've approved
 router.get("/:aadhaar", requireAuth, requirePatientAccess(fromParams), audit("view_record"), getPatientById);

@@ -13,6 +13,7 @@ const { JWT_SECRET } = require("../config/jwt");
 
 const app = express();
 app.use(express.json());
+app.use("/api/auth", require("../routes/authRoutes"));
 app.use("/api/patients", require("../routes/patientRoutes"));
 app.use("/api/treatments", require("../routes/treatmentRoutes"));
 app.use("/api/labresults", require("../routes/labResultRoutes"));

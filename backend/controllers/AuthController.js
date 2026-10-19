@@ -4,6 +4,24 @@ const User = require("../models/User");
 const Patient = require("../models/Patient");
 const { isVerified } = require("../utils/verificationStore");
 const { JWT_SECRET } = require("../config/jwt");
+const { generateUnique } = require("../utils/registrationNumber");
+
+// Creates the patient with a freshly issued registration number. Two sign-ups racing for the same
+// number is vanishingly unlikely, but the unique index would reject the loser, so try again.
+async function createPatientWithNumber(fields) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const registrationNumber = await generateUnique(async (n) => !!(await Patient.findOne({ registrationNumber: n })));
+    try {
+      const patient = new Patient({ ...fields, registrationNumber });
+      await patient.save();
+      return patient;
+    } catch (err) {
+      const clashOnNumber = err && err.code === 11000 && err.keyPattern && err.keyPattern.registrationNumber;
+      if (!clashOnNumber) throw err;
+    }
+  }
+  throw new Error("Couldn't issue a registration number — please try again");
+}
 
 // ================= REGISTER =================
 exports.register = async (req, res) => {
@@ -57,18 +75,22 @@ exports.register = async (req, res) => {
     });
 
     if (!existingPatient) {
-      const newPatient = new Patient({
-        name: name || "New Patient",
-        aadhaar_id: aadhaar,
-        mobile: mobile || "",
-        email: email || "",
-        address: address || "",
-        dob: dob || "",
-        digilockerVerified: isVerified(aadhaar),
-        digilockerVerifiedAt: isVerified(aadhaar) ? new Date() : null
-      });
-
-      await newPatient.save();
+      try {
+        await createPatientWithNumber({
+          name: name || "New Patient",
+          aadhaar_id: aadhaar,
+          mobile: mobile || "",
+          email: email || "",
+          address: address || "",
+          dob: dob || "",
+          digilockerVerified: isVerified(aadhaar),
+          digilockerVerifiedAt: isVerified(aadhaar) ? new Date() : null
+        });
+      } catch (err) {
+        // don't leave a login behind with no patient profile: it would block signing up again
+        await User.findByIdAndDelete(newUser._id);
+        throw err;
+      }
     }
 
     res.status(201).json({
