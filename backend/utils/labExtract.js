@@ -120,6 +120,9 @@ function patternExtract(text) {
     }
 
     if ((name.match(/[A-Za-z]/g) || []).length < 2) continue;
+    // A real lab row carries a unit or a reference range. "Filling on tooth 14 intact" has neither
+    // ("intact" is a word, not a unit), so it is not a result.
+    if (!range && !isUnitLike(unit)) continue;
     rows.push({ testName: name, resultValue: value, unit, referenceRange: range });
   }
   return rows;
@@ -195,6 +198,12 @@ function rangeSuspicious(range) {
   if ((text.match(/\d+(?:\.\d+)?/g) || []).some((n) => /^0\d/.test(n))) return true;
   const m = text.match(/^\s*(\d+\.\d+)\s*(?:-|–|—|to)\s*(\d+)\s*$/i);
   return !!m && Number(m[2]) >= 10 && Number(m[2]) >= 8 * Number(m[1]);
+}
+
+// Does this look like a unit of measurement (not just a word)? Standard units, OCR-garbled standard units
+// ("Jcumm" for "/cumm") and anything containing "/" or "%" count.
+function isUnitLike(unit) {
+  return !!unit && (/[/%]/.test(unit) || FOLDED_UNITS.has(foldUnit(unit)) || canonicalUnit(unit) !== unit);
 }
 
 // is this unit (allowing for OCR look-alikes) actually somewhere in the report?
@@ -298,6 +307,7 @@ async function extractLabRows(text, { llm = defaultLlm, now = new Date() } = {})
   let method = "ai";
   let raw = null;
   let reportDate = null;
+  let aiAnswered = false; // the model replied with a usable list — even an empty one
 
   try {
     const content = await llm({
@@ -308,20 +318,26 @@ async function extractLabRows(text, { llm = defaultLlm, now = new Date() } = {})
     if (parsed && Array.isArray(parsed.results)) {
       raw = parsed.results;
       reportDate = parsed.reportDate;
+      aiAnswered = true;
+    } else {
+      console.error("⚠️ LAB EXTRACT AI REPLY UNUSABLE (not a results list)");
     }
   } catch (err) {
-    // log the failure class only — never the report text
-    console.error("⚠️ LAB EXTRACT AI UNAVAILABLE:", err.code || err.message);
+    // log the failure class and HTTP status only — never the report text
+    console.error("⚠️ LAB EXTRACT AI UNAVAILABLE:", err.code || err.message, err.status || "");
   }
 
-  let checked = raw ? validateRows(raw, cleaned) : null;
-
-  if (!checked || checked.rows.length === 0) {
-    const fallback = validateRows(patternExtract(cleaned), cleaned);
-    if (!checked || fallback.rows.length > 0) {
-      method = "pattern";
-      checked = fallback;
-    }
+  let checked;
+  if (aiAnswered) {
+    // The model read the document and answered. An empty list means "there are no lab results in this
+    // document" (a dental chart, a letter, the wrong file) and is believed: pattern-matching a document
+    // that isn't a lab report only invents rows out of tooth numbers and page numbers.
+    checked = validateRows(raw, cleaned);
+  } else {
+    // The AI was unavailable, or its reply wasn't a usable list: best-effort pattern matching,
+    // and the screen says so.
+    method = "pattern";
+    checked = validateRows(patternExtract(cleaned), cleaned);
   }
 
   return {

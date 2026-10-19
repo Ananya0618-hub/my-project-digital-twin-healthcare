@@ -136,6 +136,21 @@ test("extract maps reader problems to clear statuses and messages", async () => 
   assert.match(none.body.message, /by hand/);
 });
 
+test("a file with no lab results is refused with a clear message — whether the AI answered 'none' or was down", async () => {
+  const dental = "DENTAL EXAMINATION REPORT\nTooth 14 - Filling intact\nFilling on tooth 14 intact\nCavity fillings for teeth 18 and 28\nGum condition : healthy";
+  readImpl = async () => ({ kind: "image", text: dental });
+
+  aiImpl = async () => '{"reportDate": null, "results": []}'; // the AI works and finds nothing
+  let r = await upload(freshPatient());
+  assert.strictEqual(r.status, 422);
+  assert.match(r.body.message, /No lab results could be found/);
+
+  aiImpl = async () => { throw Object.assign(new Error("down"), { code: "AI_HTTP", status: 503 }); }; // the AI is down
+  r = await upload(freshPatient());
+  assert.strictEqual(r.status, 422);
+  assert.match(r.body.message, /No lab results could be found/);
+});
+
 test("extract is rate limited per login", async () => {
   const t = freshPatient();
   for (let i = 0; i < 8; i++) assert.strictEqual((await upload(t)).status, 200, `request ${i + 1}`);

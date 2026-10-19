@@ -164,8 +164,7 @@ test("extractLabRows falls back to pattern matching when the AI is unavailable o
     async () => { throw Object.assign(new Error("no key"), { code: "NO_KEY" }); },
     async () => { throw Object.assign(new Error("http"), { code: "AI_HTTP", status: 500 }); },
     async () => "I'm sorry, I can't do that.",
-    async () => '{"results": "not an array"}',
-    async () => '{"reportDate": null, "results": []}'
+    async () => '{"results": "not an array"}'
   ]) {
     const out = await extractLabRows(REPORT, { llm, now: NOW });
     assert.strictEqual(out.method, "pattern");
@@ -271,4 +270,49 @@ test("validateRows: a suspicious range gets a 'Check' tag and no status; HbAlc i
   );
   assert.deepStrictEqual(rows.map((r) => [r.testName, r.verified, r.status]), [["HbA1c", true, "high"], ["Serum Creatinine", false, null], ["TSH", true, "normal"]]);
   assert.strictEqual(rows[1].referenceRange, "0.7-13"); // kept, so the person can correct it
+});
+
+// ---- a document that isn't a lab report ------------------------------------------------------------
+const DENTAL = `DENTAL EXAMINATION REPORT
+Patient Name : John Doe
+Date : 12/03/2026
+Tooth 14 - Filling intact
+Tooth 18 - Cavity, filling required
+Filling on tooth 14 intact
+Cavity fillings for teeth 18 and 28
+Gum condition : healthy
+Recommended : scaling and polishing`;
+
+test("when the AI answers 'no lab results', that answer is believed: no pattern-matching junk, no 'AI unavailable' banner", async () => {
+  const out = await extractLabRows(DENTAL, { llm: async () => '{"reportDate": null, "results": []}', now: NOW });
+  assert.strictEqual(out.method, "ai");   // the AI was available and did its job
+  assert.deepStrictEqual(out.rows, []);   // tooth numbers 14 and 18 are not results
+});
+
+test("a document with no lab rows gives no rows from the pattern fallback either (AI down)", async () => {
+  for (const llm of [
+    async () => { throw Object.assign(new Error("down"), { code: "AI_HTTP", status: 503 }); },
+    async () => "I can't help with that."
+  ]) {
+    const out = await extractLabRows(DENTAL, { llm, now: NOW });
+    assert.strictEqual(out.method, "pattern");
+    assert.deepStrictEqual(out.rows, [], "words like 'intact' and 'and' are not units");
+  }
+});
+
+test("pattern matching keeps rows with a unit or a reference range and drops lines with neither", () => {
+  const rows = patternExtract(
+    [
+      "Haemoglobin   13.2   g/dL   13.0 - 17.0",       // unit + range
+      "Total Leucocyte Count   11200   Jfcumm",        // garbled unit, repaired by the dictionary
+      "Serum Ferritin   55   70 - 400",                // range only
+      "HbA1c 6.1 % < 5.7",
+      "Filling on tooth 14 intact",                    // a word, not a unit
+      "Cavity fillings for teeth 18 and 28",
+      "Tooth 14 - Filling intact",
+      "Room 12 north wing",
+      "Invoice 2026 paid"
+    ].join("\n")
+  );
+  assert.deepStrictEqual(rows.map((r) => r.testName), ["Haemoglobin", "Total Leucocyte Count", "Serum Ferritin", "HbA1c"]);
 });
