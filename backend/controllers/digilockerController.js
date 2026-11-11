@@ -2,11 +2,11 @@ const Patient = require("../models/Patient");
 const Doctor = require("../models/Doctor");
 const { markVerified } = require("../utils/verificationStore");
 
-// Sandbox's test environment — pre-approved for all standard products
-// (including DigiLocker) without needing production/business approval,
-// which is exactly what a personal test/API key is meant for. Doesn't
-// consume wallet balance either. Switch to the production base URL only
-// once the account has gone through Sandbox's business approval process.
+// Sandbox's test environment by default (use SANDBOX_BASE_URL=https://api.sandbox.co.in with Live keys).
+// Test keys go with the test URL and live keys with the live URL; mixing them is refused.
+// NOTE: Sandbox's access token is not a bearer token — it is sent in the `authorization` header
+// as-is (see the two calls below). Sending "Bearer <token>" makes the API answer 403
+// "Insufficient privilege", which is easy to mistake for an account-approval problem.
 const SANDBOX_BASE = process.env.SANDBOX_BASE_URL || "https://test-api.sandbox.co.in";
 
 // The public HTTPS URL this backend is reachable at — used to build the
@@ -70,7 +70,7 @@ exports.initiateSession = async (req, res) => {
     const sessionRes = await fetch(`${SANDBOX_BASE}/kyc/digilocker/sessions/init`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        authorization: token, // NOT a bearer token: Sandbox wants it as-is, without the "Bearer " prefix
         "Content-Type": "application/json",
         "x-api-key": process.env.SANDBOX_API_KEY
       },
@@ -121,7 +121,7 @@ exports.handleCallback = async (req, res) => {
 
     const statusRes = await fetch(`${SANDBOX_BASE}/kyc/digilocker/sessions/${sessionId}/status`, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        authorization: token, // NOT a bearer token: Sandbox wants it as-is, without the "Bearer " prefix
         "x-api-key": process.env.SANDBOX_API_KEY
       }
     });

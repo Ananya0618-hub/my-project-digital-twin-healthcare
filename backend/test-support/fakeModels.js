@@ -51,6 +51,11 @@ function makeModel(name, defaults = () => ({}), uniqueOn = []) {
     static async findById(id) {
       return store.find((d) => d._id === id) || null;
     }
+    static async findOneAndUpdate(filter, update) {
+      const doc = store.find((d) => Model._match(d, filter)) || null;
+      if (doc) Object.assign(doc, update.$set || update);
+      return doc;
+    }
     static async findByIdAndDelete(id) {
       store = store.filter((d) => d._id !== id);
     }

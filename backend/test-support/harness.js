@@ -21,6 +21,7 @@ app.use("/api/ai", require("../routes/aiRoutes"));
 app.use("/api/fhir", require("../routes/fhirImportRoutes"));
 app.use("/api/consent", require("../routes/consentRoutes"));
 app.use("/api/hospitals", require("../routes/hospitalRoutes"));
+app.use("/api/digilocker", require("../routes/digilockerRoutes"));
 
 const patientToken = (aadhaar) => jwt.sign({ id: "p", aadhaar, role: "patient" }, JWT_SECRET);
 const legacyPatientToken = (aadhaar) => jwt.sign({ id: "p", aadhaar }, JWT_SECRET); // pre-role tokens
