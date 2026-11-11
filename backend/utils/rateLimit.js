@@ -14,4 +14,7 @@ function tooMany(key, { windowMs, max }) {
   return false;
 }
 
-module.exports = { tooMany };
+// for tests only
+const _reset = () => buckets.clear();
+
+module.exports = { tooMany, _reset };

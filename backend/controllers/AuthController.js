@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Patient = require("../models/Patient");
-const { isVerified } = require("../utils/verificationStore");
+const { isVerifiedFor } = require("../utils/verificationStore");
 const { JWT_SECRET } = require("../config/jwt");
 const { generateUnique } = require("../utils/registrationNumber");
 
@@ -75,6 +75,8 @@ exports.register = async (req, res) => {
     });
 
     if (!existingPatient) {
+      // verified only if DigiLocker confirmed this Aadhaar AND these are the details that were checked
+      const verified = isVerifiedFor(aadhaar, { name, dob });
       try {
         await createPatientWithNumber({
           name: name || "New Patient",
@@ -83,8 +85,8 @@ exports.register = async (req, res) => {
           email: email || "",
           address: address || "",
           dob: dob || "",
-          digilockerVerified: isVerified(aadhaar),
-          digilockerVerifiedAt: isVerified(aadhaar) ? new Date() : null
+          digilockerVerified: verified,
+          digilockerVerifiedAt: verified ? new Date() : null
         });
       } catch (err) {
         // don't leave a login behind with no patient profile: it would block signing up again

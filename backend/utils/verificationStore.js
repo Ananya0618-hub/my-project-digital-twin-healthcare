@@ -1,19 +1,46 @@
-// Tracks DigiLocker verification results by Aadhaar number, independent of
-// whether a Patient/Doctor account has actually been created yet. This is
-// what makes it possible to verify Aadhaar *during* registration — before
-// there's any database record to attach the result to.
-//
-// In-memory and resets on server restart. Acceptable here: a registration
-// in progress that gets interrupted by a server restart just needs to
-// re-verify, same as any other in-flight session would.
-const verifiedAadhaars = new Map();
+const { namesMatch, dobMatches } = require("./identityMatch");
 
-function markVerified(aadhaar, role) {
-  verifiedAadhaars.set(aadhaar, { role, verifiedAt: Date.now() });
+// Tracks which Aadhaar numbers have passed DigiLocker verification, so registration can pick the result up —
+// verification happens DURING sign-up, before any Patient/Doctor record exists to attach it to.
+// A verification is bound to the identity that was checked (name, and date of birth for patients), and expires:
+// the account must be created within 30 minutes, with the same details that were verified.
+// In memory: a restart mid-registration just means verifying again.
+const TTL_MS = 30 * 60 * 1000;
+const MAX_RECORDS = 5000;
+const records = new Map();
+
+function prune(now = Date.now()) {
+  for (const [aadhaar, r] of records) if (now - r.verifiedAt > TTL_MS) records.delete(aadhaar);
 }
 
-function isVerified(aadhaar) {
-  return verifiedAadhaars.has(aadhaar);
+function markVerified(aadhaar, role, identity = {}) {
+  prune();
+  if (records.size >= MAX_RECORDS) records.delete(records.keys().next().value); // drop the oldest
+  records.set(aadhaar, { role, verifiedAt: Date.now(), name: identity.name || "", dob: identity.dob || "" });
 }
 
-module.exports = { markVerified, isVerified };
+function getVerification(aadhaar) {
+  const r = records.get(aadhaar);
+  if (!r) return null;
+  if (Date.now() - r.verifiedAt > TTL_MS) {
+    records.delete(aadhaar);
+    return null;
+  }
+  return r;
+}
+
+const isVerified = (aadhaar) => getVerification(aadhaar) !== null;
+
+// True only if this Aadhaar was verified AND the details being registered are the ones that were verified.
+function isVerifiedFor(aadhaar, { name, dob } = {}) {
+  const r = getVerification(aadhaar);
+  if (!r) return false;
+  if (r.name && !namesMatch(name, r.name)) return false;
+  if (r.dob && !dobMatches(dob, r.dob)) return false;
+  return true;
+}
+
+// for tests only
+const _reset = () => records.clear();
+
+module.exports = { markVerified, isVerified, isVerifiedFor, TTL_MS, _reset };

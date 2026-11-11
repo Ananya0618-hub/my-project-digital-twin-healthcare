@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Doctor = require("../models/Doctor");
-const { isVerified } = require("../utils/verificationStore");
+const { isVerifiedFor } = require("../utils/verificationStore");
 const { JWT_SECRET } = require("../config/jwt");
 
 // ================= REGISTER =================
@@ -23,7 +23,7 @@ exports.registerDoctor = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const verified = aadhaarNumber ? isVerified(aadhaarNumber) : false;
+    const verified = aadhaarNumber ? isVerifiedFor(aadhaarNumber, { name }) : false;
 
     const newDoctor = new Doctor({
       name,

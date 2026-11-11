@@ -1,27 +1,33 @@
 const Patient = require("../models/Patient");
 const Doctor = require("../models/Doctor");
+const User = require("../models/User");
 const { markVerified } = require("../utils/verificationStore");
+const { parseAadhaarXml } = require("../utils/aadhaarXml");
+const { compareIdentity, parseDob, nameTokens } = require("../utils/identityMatch");
+const { tooMany } = require("../utils/rateLimit");
+const limits = require("../config/limits");
 
 // Sandbox's test environment by default (use SANDBOX_BASE_URL=https://api.sandbox.co.in with Live keys).
 // Test keys go with the test URL and live keys with the live URL; mixing them is refused.
 // NOTE: Sandbox's access token is not a bearer token — it is sent in the `authorization` header
-// as-is (see the two calls below). Sending "Bearer <token>" makes the API answer 403
-// "Insufficient privilege", which is easy to mistake for an account-approval problem.
+// as-is. Sending "Bearer <token>" makes the API answer 403 "Insufficient privilege", which is easy to
+// mistake for an account-approval problem.
 const SANDBOX_BASE = process.env.SANDBOX_BASE_URL || "https://test-api.sandbox.co.in";
 
-// The public HTTPS URL this backend is reachable at — used to build the
-// callback DigiLocker/Sandbox redirects the user's browser back to once
-// they've granted consent.
+// The public HTTPS URL this backend is reachable at — used to build the callback Sandbox redirects the
+// user's browser back to once they've granted consent.
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://healthmirror.duckdns.org";
+
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const MAX_SESSIONS = 2000;
+const MAX_FILE_CHARS = 400 * 1024;
 
 // ================= AUTH (cached, refreshed when expired) =================
 let cachedToken = null;
 let cachedTokenExpiry = 0;
 
 async function getAccessToken() {
-  if (cachedToken && Date.now() < cachedTokenExpiry) {
-    return cachedToken;
-  }
+  if (cachedToken && Date.now() < cachedTokenExpiry) return cachedToken;
 
   const res = await fetch(`${SANDBOX_BASE}/authenticate`, {
     method: "POST",
@@ -29,134 +35,181 @@ async function getAccessToken() {
       "x-api-key": process.env.SANDBOX_API_KEY,
       "x-api-secret": process.env.SANDBOX_API_SECRET,
       "x-api-version": "1.0.0"
-    }
+    },
+    signal: AbortSignal.timeout(15000)
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Sandbox auth failed: ${res.status} ${errText}`);
-  }
+  if (!res.ok) throw new Error(`Sandbox auth failed: ${res.status}`);
 
   const data = await res.json();
   cachedToken = data.access_token;
-  // Sandbox tokens are valid 24h — refresh a little early to be safe.
-  cachedTokenExpiry = Date.now() + 23 * 60 * 60 * 1000;
-
+  cachedTokenExpiry = Date.now() + 23 * 60 * 60 * 1000; // tokens last 24h
   return cachedToken;
 }
 
-// In-memory map of DigiLocker session_id -> { aadhaar, role }. "role" is
-// "patient" or "doctor" — needed because this same flow now runs during
-// registration for both, before any database account exists yet.
+const sandboxHeaders = (token) => ({ authorization: token, "x-api-key": process.env.SANDBOX_API_KEY }); // token as-is, not "Bearer"
+
+// session_id -> what the registration form claimed. Used once, by the callback.
 const sessionToInfo = new Map();
 
+function rememberSession(sessionId, info) {
+  const now = Date.now();
+  for (const [id, s] of sessionToInfo) if (now - s.createdAt > SESSION_TTL_MS) sessionToInfo.delete(id);
+  if (sessionToInfo.size >= MAX_SESSIONS) sessionToInfo.delete(sessionToInfo.keys().next().value);
+  sessionToInfo.set(sessionId, { ...info, createdAt: now });
+}
+
 // ================= STEP 1: START A DIGILOCKER SESSION =================
+// Everything that can be checked for free is checked before Sandbox is called, because a completed
+// verification costs real wallet credits.
 exports.initiateSession = async (req, res) => {
   try {
-    const { aadhaar, role } = req.body;
+    const { aadhaar, role: roleIn, name, dob } = req.body || {};
+    const role = roleIn === "doctor" ? "doctor" : "patient";
 
-    if (!aadhaar) {
-      return res.status(400).json({ message: "aadhaar is required ❌" });
+    if (!/^\d{12}$/.test(String(aadhaar || ""))) {
+      return res.status(400).json({ message: "Enter a valid 12-digit Aadhaar number first ❌" });
+    }
+    if (typeof name !== "string" || nameTokens(name).length === 0) {
+      return res.status(400).json({ message: "Enter your name first — it is checked against DigiLocker ❌" });
+    }
+    if (role === "patient" && !(parseDob(dob) || {}).d) {
+      return res.status(400).json({ message: "Enter your date of birth as DD/MM/YYYY first — it is checked against DigiLocker ❌" });
     }
 
     if (!process.env.SANDBOX_API_KEY || !process.env.SANDBOX_API_SECRET) {
-      return res.status(500).json({
-        message: "DigiLocker verification isn't configured yet — SANDBOX_API_KEY/SECRET missing in .env ❌"
-      });
+      return res.status(500).json({ message: "DigiLocker verification isn't configured yet — SANDBOX_API_KEY/SECRET missing in .env ❌" });
+    }
+
+    // don't spend a verification on someone who can't register anyway
+    const taken = role === "patient" ? await User.findOne({ aadhaar }) : await Doctor.findOne({ aadhaarNumber: aadhaar });
+    if (taken) {
+      return res.status(409).json({ message: "An account with this Aadhaar number already exists ❌ — log in instead" });
+    }
+
+    const overIp = tooMany(`dl:ip:${req.ip}`, limits.digilockerStartPerIp);
+    const overAadhaar = tooMany(`dl:aadhaar:${aadhaar}`, limits.digilockerStartPerAadhaar);
+    if (overIp || overAadhaar) {
+      return res.status(429).json({ message: "Too many verification attempts ❌ — please wait a while and try again" });
     }
 
     const token = await getAccessToken();
-
     const sessionRes = await fetch(`${SANDBOX_BASE}/kyc/digilocker/sessions/init`, {
       method: "POST",
-      headers: {
-        authorization: token, // NOT a bearer token: Sandbox wants it as-is, without the "Bearer " prefix
-        "Content-Type": "application/json",
-        "x-api-key": process.env.SANDBOX_API_KEY
-      },
+      headers: { ...sandboxHeaders(token), "Content-Type": "application/json" },
       body: JSON.stringify({
         "@entity": "in.co.sandbox.kyc.digilocker.session.request",
         flow: "signin",
         doc_types: ["aadhaar"],
         redirect_url: `${PUBLIC_BASE_URL}/api/digilocker/callback`
-      })
+      }),
+      signal: AbortSignal.timeout(20000)
     });
 
     if (!sessionRes.ok) {
-      const errText = await sessionRes.text();
-      console.error("❌ DIGILOCKER INIT ERROR:", sessionRes.status, errText);
+      console.error("❌ DIGILOCKER INIT ERROR:", sessionRes.status);
       return res.status(502).json({ message: "Couldn't start DigiLocker verification ❌" });
     }
 
-    const sessionData = await sessionRes.json();
-    const { authorization_url, session_id } = sessionData.data;
-
-    sessionToInfo.set(session_id, { aadhaar, role: role || "patient" });
+    const { authorization_url, session_id } = (await sessionRes.json()).data;
+    rememberSession(session_id, { aadhaar, role, name: name.trim(), dob: role === "patient" ? String(dob).trim() : "" });
 
     res.json({ authorizationUrl: authorization_url });
   } catch (err) {
-    console.error("❌ DIGILOCKER INITIATE ERROR:", err);
-    res.status(500).json({ message: err.message || "Server error ❌" });
+    console.error("❌ DIGILOCKER INITIATE ERROR:", err.message);
+    res.status(500).json({ message: "Couldn't start DigiLocker verification ❌" });
   }
 };
 
-// ================= STEP 2: HANDLE THE REDIRECT BACK FROM DIGILOCKER =================
+// ================= STEP 2: DOWNLOAD THE AADHAAR DOCUMENT (once) =================
+// -> { ok: true, document } | { ok: false, kind: "credits" | "error" }
+async function fetchAadhaarDocument(sessionId, token) {
+  const docRes = await fetch(`${SANDBOX_BASE}/kyc/digilocker/sessions/${sessionId}/documents/aadhaar`, {
+    headers: sandboxHeaders(token),
+    signal: AbortSignal.timeout(20000)
+  });
+  const body = await docRes.json().catch(() => ({}));
+
+  if (!docRes.ok) {
+    console.error("❌ DIGILOCKER DOCUMENT ERROR:", docRes.status, String(body.message || "").slice(0, 120));
+    return { ok: false, kind: /credit|balance/i.test(String(body.message || "")) ? "credits" : "error" };
+  }
+
+  const files = (body.data && body.data.files) || [];
+  const file = files.find((f) => /xml/i.test((f.metadata && f.metadata.ContentType) || "")) || files[0];
+  if (!file || !file.url) return { ok: false, kind: "error" };
+
+  const url = new URL(file.url);
+  if (url.protocol !== "https:") return { ok: false, kind: "error" };
+
+  let fileRes = await fetch(url, { signal: AbortSignal.timeout(20000) });
+  // Sandbox credentials only ever go to Sandbox itself, never to whatever host holds the file
+  if ([401, 403].includes(fileRes.status) && url.host === new URL(SANDBOX_BASE).host) {
+    fileRes = await fetch(url, { headers: sandboxHeaders(token), signal: AbortSignal.timeout(20000) });
+  }
+  if (!fileRes.ok) return { ok: false, kind: "error" };
+
+  const text = await fileRes.text();
+  if (text.length > MAX_FILE_CHARS) return { ok: false, kind: "error" };
+
+  const parsed = parseAadhaarXml(text);
+  if (!parsed.ok) {
+    console.error("❌ DIGILOCKER DOCUMENT UNREADABLE:", parsed.reason);
+    return { ok: false, kind: "error" };
+  }
+  return { ok: true, document: parsed };
+}
+
+// ================= STEP 3: HANDLE THE REDIRECT BACK FROM DIGILOCKER =================
+// ?digilocker=  success | failed (consent not completed) | mismatch&reason=aadhaar,dob,name |
+//               unavailable (the service can't run right now) | error
 exports.handleCallback = async (req, res) => {
-  const frontendBase = PUBLIC_BASE_URL;
+  const go = (result, extra = "") => res.redirect(`${PUBLIC_BASE_URL}/?digilocker=${result}${extra}`);
 
   try {
     const { state } = req.query;
-
-    // Sandbox encodes the session_id as the second pipe-separated segment
-    // of the OAuth "state" parameter it passes through DigiLocker and back.
-    const sessionId = state ? state.split("|")[1] : null;
+    // Sandbox passes the session_id as the second pipe-separated part of the OAuth "state"
+    const sessionId = typeof state === "string" ? state.split("|")[1] : null;
     const info = sessionId ? sessionToInfo.get(sessionId) : null;
+    if (!sessionId || !info) return go("error");
 
-    if (!sessionId || !info) {
-      return res.redirect(`${frontendBase}/?digilocker=error`);
-    }
-
-    const { aadhaar, role } = info;
-    const token = await getAccessToken();
-
-    const statusRes = await fetch(`${SANDBOX_BASE}/kyc/digilocker/sessions/${sessionId}/status`, {
-      headers: {
-        authorization: token, // NOT a bearer token: Sandbox wants it as-is, without the "Bearer " prefix
-        "x-api-key": process.env.SANDBOX_API_KEY
-      }
-    });
-
-    const statusData = await statusRes.json();
-    const status = statusData.data?.status;
-
+    // single use, FIRST: reloading or replaying this URL must never trigger a second (paid) download
     sessionToInfo.delete(sessionId);
 
-    if (status === "succeeded") {
-      // Record it in the in-memory store immediately — this is what makes
-      // verification-during-registration work, since no Patient/Doctor
-      // record may exist in the database yet at this point.
-      markVerified(aadhaar, role);
+    const token = await getAccessToken();
+    const statusRes = await fetch(`${SANDBOX_BASE}/kyc/digilocker/sessions/${sessionId}/status`, {
+      headers: sandboxHeaders(token),
+      signal: AbortSignal.timeout(15000)
+    });
+    const status = ((await statusRes.json().catch(() => ({}))).data || {}).status;
 
-      // Best-effort: if an account already exists (e.g. verifying from an
-      // existing dashboard rather than mid-registration), update it too.
-      if (role === "doctor") {
-        await Doctor.findOneAndUpdate(
-          { aadhaarNumber: aadhaar },
-          { digilockerVerified: true, digilockerVerifiedAt: new Date() }
-        );
-      } else {
-        await Patient.findOneAndUpdate(
-          { aadhaar_id: aadhaar },
-          { digilockerVerified: true, digilockerVerifiedAt: new Date() }
-        );
-      }
+    // consent not completed -> nothing to download, nothing to pay for
+    if (status !== "succeeded") return go("failed");
 
-      return res.redirect(`${frontendBase}/?digilocker=success`);
+    const doc = await fetchAadhaarDocument(sessionId, token);
+    if (!doc.ok) {
+      console.log("🪪 DIGILOCKER:", doc.kind === "credits" ? "unavailable (credits)" : "document error");
+      return go(doc.kind === "credits" ? "unavailable" : "error");
     }
 
-    return res.redirect(`${frontendBase}/?digilocker=failed`);
+    const { ok, mismatches } = compareIdentity(info, doc.document);
+    if (!ok) {
+      console.log("🪪 DIGILOCKER: identity mismatch —", mismatches.join(","));
+      return go("mismatch", `&reason=${mismatches.join(",")}`);
+    }
+
+    // Verified: this DigiLocker account belongs to the person the form describes.
+    markVerified(info.aadhaar, info.role, { name: info.name, dob: info.dob });
+
+    // best effort: if an account for this Aadhaar already exists, flag it too
+    const flag = { digilockerVerified: true, digilockerVerifiedAt: new Date() };
+    if (info.role === "doctor") await Doctor.findOneAndUpdate({ aadhaarNumber: info.aadhaar }, flag);
+    else await Patient.findOneAndUpdate({ aadhaar_id: info.aadhaar }, flag);
+
+    console.log("🪪 DIGILOCKER: verified");
+    return go("success");
   } catch (err) {
-    console.error("❌ DIGILOCKER CALLBACK ERROR:", err);
-    return res.redirect(`${frontendBase}/?digilocker=error`);
+    console.error("❌ DIGILOCKER CALLBACK ERROR:", err.message);
+    return go("error");
   }
 };

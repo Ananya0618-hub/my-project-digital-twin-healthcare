@@ -650,15 +650,43 @@ function App() {
 
   // ===== DigiLocker verification =====
   const [digilockerLoading, setDigilockerLoading] = useState(false);
-  const [digilockerBanner, setDigilockerBanner] = useState(null); // "success" | "failed" | "error" | null
+  const [digilockerBanner, setDigilockerBanner] = useState(null); // "success" | "failed" | "mismatch" | "unavailable" | "error" | null
+  const [digilockerReason, setDigilockerReason] = useState(""); // for "mismatch": which of aadhaar, dob, name disagreed
 
-  // Handle the redirect back from DigiLocker (?digilocker=success|failed|error in the URL)
+  const renderDigilockerBanner = () => {
+    const REASONS = { aadhaar: "Aadhaar number", dob: "date of birth", name: "name" };
+    const mismatched = digilockerReason.split(",").filter((r) => REASONS[r]).map((r) => REASONS[r]);
+    if (digilockerBanner === "success") {
+      return (
+        <div className="ai-summary-box">
+          <p>Aadhaar verified successfully via DigiLocker ✅</p>
+        </div>
+      );
+    }
+    if (digilockerBanner === "failed") return <div className="ai-error">DigiLocker verification wasn't completed ❌</div>;
+    if (digilockerBanner === "mismatch") {
+      return (
+        <div className="ai-error">
+          The DigiLocker account you used doesn't match what you entered
+          {mismatched.length ? ` (${mismatched.join(", ")})` : ""} ❌ Check the form, and log in with your own DigiLocker.
+        </div>
+      );
+    }
+    if (digilockerBanner === "unavailable") {
+      return <div className="ai-error">DigiLocker verification is temporarily unavailable ⚠️ You can continue now and verify later.</div>;
+    }
+    if (digilockerBanner === "error") return <div className="ai-error">Something went wrong during DigiLocker verification ❌</div>;
+    return <div className="ai-error">Aadhaar not verified yet — you can still continue for now</div>;
+  };
+
+  // Handle the redirect back from DigiLocker (?digilocker=success|failed|mismatch|unavailable|error in the URL)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const result = params.get("digilocker");
 
     if (result) {
       setDigilockerBanner(result);
+      setDigilockerReason(params.get("reason") || "");
       window.history.replaceState({}, "", window.location.pathname);
 
       // A full-page redirect to DigiLocker wipes React state, so if this
@@ -700,7 +728,7 @@ function App() {
 
   // Shared helper: save in-progress registration state (since a full-page
   // redirect to DigiLocker wipes React state) and kick off the redirect.
-  const saveAndRedirectToDigilocker = async (aadhaarNumber, role, pendingState) => {
+  const saveAndRedirectToDigilocker = async (aadhaarNumber, role, pendingState, identity = {}) => {
     if (!aadhaarNumber || aadhaarNumber.length !== 12) {
       alert("Enter a 12-digit Aadhaar number first ❌");
       return;
@@ -713,7 +741,7 @@ function App() {
       const res = await fetch(`${API}/digilocker/initiate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aadhaar: aadhaarNumber, role })
+        body: JSON.stringify({ aadhaar: aadhaarNumber, role, name: identity.name, dob: identity.dob })
       });
 
       const data = await res.json();
@@ -734,19 +762,34 @@ function App() {
   };
 
   const startPatientRegistrationDigilocker = () => {
-    saveAndRedirectToDigilocker(regAadhaar, "patient", {
-      flow: "patient",
-      step: 3,
-      fields: { regName, regDob, regMobile, regEmail, regAddress, regAadhaar, regPassword }
-    });
+    // DigiLocker confirms these against the person who logs in, so they must be filled in first
+    if (!regName.trim()) {
+      alert("Enter your name first — it is checked against your DigiLocker ❌");
+      return;
+    }
+    if (!/^\d{1,2}[/.-]\d{1,2}[/.-]\d{4}$/.test(regDob.trim())) {
+      alert("Enter your date of birth as DD/MM/YYYY first — it is checked against your DigiLocker ❌");
+      return;
+    }
+    saveAndRedirectToDigilocker(
+      regAadhaar,
+      "patient",
+      { flow: "patient", step: 3, fields: { regName, regDob, regMobile, regEmail, regAddress, regAadhaar, regPassword } },
+      { name: regName.trim(), dob: regDob.trim() }
+    );
   };
 
   const startDoctorRegistrationDigilocker = () => {
-    saveAndRedirectToDigilocker(docAadhaarNumber, "doctor", {
-      flow: "doctor",
-      step: 3,
-      fields: { docName, docRegId, docSpecialty, docPhone, docEmail, docPassword, docAadhaarNumber }
-    });
+    if (!docName.trim()) {
+      alert("Enter your name first — it is checked against your DigiLocker ❌");
+      return;
+    }
+    saveAndRedirectToDigilocker(
+      docAadhaarNumber,
+      "doctor",
+      { flow: "doctor", step: 3, fields: { docName, docRegId, docSpecialty, docPhone, docEmail, docPassword, docAadhaarNumber } },
+      { name: docName.trim() }
+    );
   };
 
   // LOAD TREATMENTS
@@ -1625,20 +1668,7 @@ function App() {
             <>
               <div className="form-section-label">Verification Result</div>
 
-              {digilockerBanner === "success" && (
-                <div className="ai-summary-box">
-                  <p>Aadhaar verified successfully via DigiLocker ✅</p>
-                </div>
-              )}
-              {digilockerBanner === "failed" && (
-                <div className="ai-error">DigiLocker verification wasn't completed ❌</div>
-              )}
-              {digilockerBanner === "error" && (
-                <div className="ai-error">Something went wrong during DigiLocker verification ❌</div>
-              )}
-              {!digilockerBanner && (
-                <div className="ai-error">Aadhaar not verified yet — you can still continue for now</div>
-              )}
+              {renderDigilockerBanner()}
 
               <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
                 <button className="btn" style={{ background: "var(--border)", color: "var(--ink-700)" }} onClick={() => setRegStep(2)}>
@@ -1797,20 +1827,7 @@ function App() {
             <>
               <div className="form-section-label">Verification Result</div>
 
-              {digilockerBanner === "success" && (
-                <div className="ai-summary-box">
-                  <p>Aadhaar verified successfully via DigiLocker ✅</p>
-                </div>
-              )}
-              {digilockerBanner === "failed" && (
-                <div className="ai-error">DigiLocker verification wasn't completed ❌</div>
-              )}
-              {digilockerBanner === "error" && (
-                <div className="ai-error">Something went wrong during DigiLocker verification ❌</div>
-              )}
-              {!digilockerBanner && (
-                <div className="ai-error">Aadhaar not verified yet — you can still continue for now</div>
-              )}
+              {renderDigilockerBanner()}
 
               <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
                 <button className="btn" style={{ background: "var(--border)", color: "var(--ink-700)" }} onClick={() => setDocRegStep(2)}>

@@ -20,6 +20,8 @@ const hospitalRoutes = require("./routes/hospitalRoutes");
 
 const app = express();
 
+// behind Nginx: take the real client address from the one proxy hop in front of the app (used by rate limits)
+app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json());
 
