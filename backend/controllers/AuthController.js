@@ -27,7 +27,6 @@ async function createPatientWithNumber(fields) {
 exports.register = async (req, res) => {
   try {
     console.log("REGISTER HIT");
-    console.log("BODY:", req.body);
 
     const { aadhaar, password, name, mobile, email, address, dob } = req.body;
 
@@ -110,8 +109,6 @@ exports.register = async (req, res) => {
 // ================= LOGIN =================
 exports.login = async (req, res) => {
   try {
-    console.log("LOGIN HIT");
-    console.log("BODY:", req.body);
 
     const { aadhaar, password } = req.body;
 
@@ -124,7 +121,6 @@ exports.login = async (req, res) => {
 
     // 🔥 FIND USER
     const user = await User.findOne({ aadhaar });
-    console.log("USER FOUND:", user);
 
     if (!user) {
       return res.status(400).json({
@@ -134,7 +130,6 @@ exports.login = async (req, res) => {
 
     // 🔥 CHECK PASSWORD
     const isMatch = await bcrypt.compare(password, user.password);
-    console.log("PASSWORD MATCH:", isMatch);
 
     if (!isMatch) {
       return res.status(400).json({
@@ -154,7 +149,6 @@ exports.login = async (req, res) => {
     );
 
     // 🔥 FINAL RESPONSE
-    console.log("SENDING RESPONSE:", user.aadhaar);
 
     res.json({
       message: "Login successful ✅",
