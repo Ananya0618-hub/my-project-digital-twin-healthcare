@@ -68,7 +68,7 @@ global.fetch = async (url, opts = {}) => {
 
   if (path === "/kyc/digilocker/sessions/init") {
     if (initMode === "refuse") return reply(403, { code: 403, message: "Insufficient privilege" });
-    lastSession = `sess-${++n}`;
+    lastSession = `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
     statuses[lastSession] = "succeeded";
     return reply(200, { data: { authorization_url: "https://digilocker.example/consent?x=1", session_id: lastSession } });
   }
@@ -273,6 +273,95 @@ test("the document is only ever fetched from an https address, whatever the repl
     assert.strictEqual(where(await comeBack(lastSession)), "/?digilocker=error", mode);
     assert.ok(!isVerified("555566667391"), mode);
     assert.strictEqual(calls.filter((c) => c.host.startsWith("files")).length, 0, `${mode}: nothing may be fetched`);
+  }
+});
+
+// ---- finding the session again: the cookie, and whatever the redirect carries -------------------------------------
+const initiateRaw = (body) =>
+  realFetch(`${ctx.base}/api/digilocker/initiate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const comeBackWith = ({ cookie, query = "" } = {}) =>
+  realFetch(`${ctx.base}/api/digilocker/callback${query ? "?" + query : ""}`, { redirect: "manual", headers: cookie ? { cookie } : {} });
+const cookieFrom = (res) => (res.headers.getSetCookie().find((c) => c.startsWith("dl_session=")) || "");
+
+test("the browser that started verification is recognised by its cookie, whatever the redirect does or doesn't carry", async () => {
+  const started = await initiateRaw(claim());
+  const setCookie = cookieFrom(started);
+  assert.ok(setCookie, "a cookie is handed out when verification starts");
+
+  const back = await comeBackWith({ cookie: setCookie.split(";")[0] }); // no parameters at all on the redirect
+  assert.strictEqual(where(back), "/?digilocker=success");
+  assert.ok(isVerified("555566667391"));
+  assert.match(cookieFrom(back), /Max-Age=0/, "the cookie is cleared once used");
+});
+
+test("the cookie can't be read by scripts, is HTTPS-only, still arrives when DigiLocker sends the browser back, and is scoped and short-lived", async () => {
+  const setCookie = cookieFrom(await initiateRaw(claim()));
+  assert.match(setCookie, new RegExp(`^dl_session=${lastSession};`));
+  for (const flag of ["HttpOnly", "Secure", "SameSite=Lax", "Path=/api/digilocker", "Max-Age=7200"]) {
+    assert.ok(setCookie.includes(flag), flag);
+  }
+});
+
+test("without a cookie, the redirect is read in each format Sandbox might use", async () => {
+  const forms = [
+    (id) => `state=${encodeURIComponent(`x|${id}|y`)}`,                                                   // "a|session|b"
+    (id) => `state=${encodeURIComponent(Buffer.from(`x|${id}|https://healthmirror.duckdns.org/cb`).toString("base64"))}`, // the same, base64
+    (id) => `state=${Buffer.from(`x|${id}|y`).toString("base64url")}`,                                    // base64url
+    (id) => `session_id=${id}`,
+    (id) => `sessionId=${id}&status=succeeded`,
+    (id) => `state=${id}`                                                                                 // just the id
+  ];
+  for (const [i, form] of forms.entries()) {
+    _reset();
+    await initiate(claim());
+    const back = await comeBackWith({ query: form(lastSession) });
+    assert.strictEqual(where(back), "/?digilocker=success", `format ${i + 1}`);
+    resetVerifications();
+  }
+});
+
+test("when several things name a session, the cookie wins, and the other session is left untouched", async () => {
+  await initiate(claim({ aadhaar: "111122227391" }));
+  const sessionA = lastSession;
+  const cookieB = cookieFrom(await initiateRaw(claim({ aadhaar: "333344447391" }))).split(";")[0];
+  const sessionB = lastSession;
+
+  const back = await comeBackWith({ cookie: cookieB, query: `session_id=${sessionA}` });
+  assert.strictEqual(where(back), "/?digilocker=success");
+  assert.ok(isVerified("333344447391") && !isVerified("111122227391"), "the cookie's session was the one used");
+  assert.strictEqual(where(await comeBackWith({ query: `session_id=${sessionA}` })), "/?digilocker=success", "the other session still works");
+  assert.ok(sessionB);
+});
+
+test("a replayed cookie costs nothing: the session is gone after one use", async () => {
+  const cookie = cookieFrom(await initiateRaw(claim())).split(";")[0];
+  assert.strictEqual(where(await comeBackWith({ cookie })), "/?digilocker=success");
+  const before = calls.length;
+  assert.strictEqual(where(await comeBackWith({ cookie })), "/?digilocker=error");
+  assert.strictEqual(calls.length, before);
+});
+
+test("an unrecognised return is logged by parameter NAMES and SIZES only, and touches nothing", async () => {
+  const before = calls.length;
+  logged.length = 0;
+  const back = await comeBackWith({ query: "code=SUPERSECRETVALUE&state=aaaaaaaaaa&other=1" });
+  assert.strictEqual(where(back), "/?digilocker=error");
+  assert.strictEqual(calls.length, before, "Sandbox was never called");
+  const line = logged.find((l) => /no known session/.test(l));
+  assert.ok(line, "the failure is logged");
+  assert.match(line, /cookie: no/);
+  assert.match(line, /"code":"16 chars"/);
+  assert.match(line, /"state":"10 chars"/);
+  assert.ok(!line.includes("SUPERSECRETVALUE") && !line.includes("aaaaaaaaaa"), "no value is ever logged");
+});
+
+test("cookies and parameters that are malformed or hostile are simply not a session", async () => {
+  for (const cookie of ["dl_session=%E0%A4%A", "dl_session=../../etc/passwd", "dl_session=", "other=1; dl_session", `dl_session=${"a".repeat(5000)}`]) {
+    const back = await comeBackWith({ cookie, query: "state=%E0%A4%A&session_id[]=x&session_id[]=y" });
+    assert.strictEqual(where(back), "/?digilocker=error", cookie.slice(0, 30));
+  }
+  for (const state of ["|", "||", "a|", "%00", "====", "a".repeat(10000), "__proto__|__proto__|x"]) {
+    assert.strictEqual(where(await comeBackWith({ query: `state=${encodeURIComponent(state)}` })), "/?digilocker=error", state.slice(0, 20));
   }
 });
 

@@ -52,6 +52,48 @@ const sandboxHeaders = (token) => ({ authorization: token, "x-api-key": process.
 // session_id -> what the registration form claimed. Used once, by the callback.
 const sessionToInfo = new Map();
 
+// ---- Finding the session again when the browser comes back from DigiLocker --------------------------------
+// The redirect's own parameters are Sandbox's business and not something to rely on, so the browser that started
+// verification is also handed a short-lived cookie naming its session. The redirect parameters are still read as
+// a fallback, in the formats Sandbox might use (session_id, a "a|session|b" state, or that same state base64-encoded).
+const SESSION_COOKIE = "dl_session";
+const COOKIE_FLAGS = "Path=/api/digilocker; HttpOnly; Secure; SameSite=Lax"; // Lax: still sent when DigiLocker sends the browser back
+
+function readCookie(req, name) {
+  for (const part of String(req.headers.cookie || "").split(";")) {
+    const at = part.indexOf("=");
+    if (at > 0 && part.slice(0, at).trim() === name) {
+      try {
+        return decodeURIComponent(part.slice(at + 1).trim());
+      } catch {
+        return "";
+      }
+    }
+  }
+  return "";
+}
+
+function sessionIdFromState(state) {
+  if (typeof state !== "string" || !state) return null;
+  if (state.includes("|")) return state.split("|")[1] || null;
+  const decoded = Buffer.from(state.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+  return decoded.includes("|") ? decoded.split("|")[1] || null : null;
+}
+
+// in order of trust: the cookie, then what the redirect carried
+function candidateSessionIds(req) {
+  const q = req.query || {};
+  const text = (v) => (typeof v === "string" ? v : "");
+  // (the raw state is a candidate too: it may simply BE the session id — looking up a string that isn't one is harmless)
+  return [readCookie(req, SESSION_COOKIE), text(q.session_id), text(q.sessionId), sessionIdFromState(q.state), text(q.state)].filter(Boolean);
+}
+
+// For the log when nothing matches: parameter NAMES and SIZES only, never values.
+const shapeOf = (q) =>
+  Object.fromEntries(
+    Object.entries(q || {}).map(([k, v]) => [String(k).slice(0, 30), typeof v === "string" ? `${v.length} chars${v.includes("|") ? ", has |" : ""}` : typeof v])
+  );
+
 function rememberSession(sessionId, info) {
   const now = Date.now();
   for (const [id, s] of sessionToInfo) if (now - s.createdAt > SESSION_TTL_MS) sessionToInfo.delete(id);
@@ -113,6 +155,7 @@ exports.initiateSession = async (req, res) => {
 
     const { authorization_url, session_id } = (await sessionRes.json()).data;
     rememberSession(session_id, { aadhaar, role, name: name.trim(), dob: role === "patient" ? String(dob).trim() : "" });
+    res.append("Set-Cookie", `${SESSION_COOKIE}=${encodeURIComponent(session_id)}; Max-Age=${SESSION_TTL_MS / 1000}; ${COOKIE_FLAGS}`);
 
     res.json({ authorizationUrl: authorization_url });
   } catch (err) {
@@ -167,11 +210,16 @@ exports.handleCallback = async (req, res) => {
   const go = (result, extra = "") => res.redirect(`${PUBLIC_BASE_URL}/?digilocker=${result}${extra}`);
 
   try {
-    const { state } = req.query;
-    // Sandbox passes the session_id as the second pipe-separated part of the OAuth "state"
-    const sessionId = typeof state === "string" ? state.split("|")[1] : null;
+    const sessionId = candidateSessionIds(req).find((id) => sessionToInfo.has(id));
     const info = sessionId ? sessionToInfo.get(sessionId) : null;
-    if (!sessionId || !info) return go("error");
+
+    // the cookie has done its job either way
+    res.append("Set-Cookie", `${SESSION_COOKIE}=; Max-Age=0; ${COOKIE_FLAGS}`);
+
+    if (!info) {
+      console.error("❌ DIGILOCKER CALLBACK: no known session. cookie:", readCookie(req, SESSION_COOKIE) ? "yes" : "no", "| query:", JSON.stringify(shapeOf(req.query)));
+      return go("error");
+    }
 
     // single use, FIRST: reloading or replaying this URL must never trigger a second (paid) download
     sessionToInfo.delete(sessionId);

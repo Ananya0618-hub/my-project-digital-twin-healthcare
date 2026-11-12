@@ -52,3 +52,11 @@ test("the photo, address and signature are never part of what is returned", () =
   assert.deepStrictEqual(Object.keys(r).sort(), ["dob", "gender", "maskedUid", "name", "ok"]);
   assert.ok(!JSON.stringify(r).includes("PHOTO") && !JSON.stringify(r).includes("Pune") && !JSON.stringify(r).includes("411045"));
 });
+
+test("attributes in single quotes are read too, and the two styles can be mixed", () => {
+  const single = xml(`<Poi dob='14-03-1999' gender='F' name='Bhoomi Testperson'/>`, `<UidData tkn='' uid='XXXXXXXX7391'>`);
+  assert.deepStrictEqual(parseAadhaarXml(single), { ok: true, name: "Bhoomi Testperson", dob: "14-03-1999", gender: "F", maskedUid: "XXXXXXXX7391" });
+  const mixed = xml(`<Poi dob="14-03-1999" gender='F' name='D&apos;Souza > Co'/>`);
+  assert.strictEqual(parseAadhaarXml(mixed).name, "D'Souza > Co");
+  assert.strictEqual(parseAadhaarXml(xml(`<Poi dob="1999" name="He said 'hi'" gender="M"/>`)).name, "He said 'hi'");
+});

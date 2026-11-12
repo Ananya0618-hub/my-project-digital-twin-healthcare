@@ -21,9 +21,9 @@ function decode(text) {
 
 function attributesOf(tagBody) {
   const out = {};
-  const re = /([A-Za-z_][\w.:-]*)\s*=\s*"([^"]*)"/g;
+  const re = /([A-Za-z_][\w.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   let m;
-  while ((m = re.exec(tagBody))) out[m[1]] = decode(m[2]);
+  while ((m = re.exec(tagBody))) out[m[1]] = decode(m[2] !== undefined ? m[2] : m[3]);
   return out;
 }
 
